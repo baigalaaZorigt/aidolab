@@ -13,7 +13,9 @@ if ! command -v nginx >/dev/null || ! command -v certbot >/dev/null; then
 fi
 
 id aidolab >/dev/null 2>&1 || useradd --system --create-home --home-dir "$HOME_DIR" --shell /usr/sbin/nologin aidolab
-install -d -o aidolab -g aidolab "$HOME_DIR/data" "$HOME_DIR/.ssh"
+install -d -m 750 -o aidolab -g aidolab "$HOME_DIR/data" "$HOME_DIR/.ssh"
+# nginx (www-data) must reach app/staticfiles: allow traversal only, data/ stays private.
+chmod 711 "$HOME_DIR"
 
 KEY="$HOME_DIR/.ssh/id_ed25519"
 if [[ "$REPO_URL" == git@* ]] && [ ! -f "$KEY" ]; then
