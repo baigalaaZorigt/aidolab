@@ -1,0 +1,26 @@
+{% extends "checker/_hosting_list.html" %}
+{% block title %}Metrics · aidolab{% endblock %}
+{% block crumbs %}<b>Metrics</b>{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Metrics</h1><p class="sub">Ажиллаж байгаа апп-уудын сүүлийн 24 цагийн тойм. Дэлгэрэнгүй график апп бүрийн Metrics табд бий.</p></div></div>
+{% if rows %}
+<table class="table">
+  <thead><tr><th>Апп</th><th>Төлөв</th><th style="text-align:right">CPU дундаж</th><th style="text-align:right">Санах ой</th><th style="text-align:right">Хүсэлт (24 цаг)</th><th style="text-align:right">p95 хариу</th><th></th></tr></thead>
+  <tbody>
+  {% for s, m in rows %}
+    <tr>
+      <td class="svc-name"><a href="/services/{{ s.pk }}/metrics/" class="mono">{{ s.name }}</a></td>
+      <td><span class="chip {{ s.deploy_state }}">{{ s.deploy_label }}</span></td>
+      <td style="text-align:right; font-variant-numeric:tabular-nums">{{ m.cpu }} %</td>
+      <td style="text-align:right; font-variant-numeric:tabular-nums">{{ m.mem }} MB</td>
+      <td style="text-align:right; font-variant-numeric:tabular-nums">{{ m.requests }}</td>
+      <td style="text-align:right; font-variant-numeric:tabular-nums">{{ m.p95 }} ms</td>
+      <td><a href="/services/{{ s.pk }}/metrics/" class="link">График</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="box empty"><p>Ажиллаж байгаа апп алга. Deploy хийсний дараа энд харагдана.</p><a href="/" class="btn primary">Үйлчилгээнүүд рүү очих</a></div>
+{% endif %}
+{% endblock %}

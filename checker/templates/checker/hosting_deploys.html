@@ -1,0 +1,25 @@
+{% extends "checker/_hosting_list.html" %}
+{% block title %}Deploy-ууд · aidolab{% endblock %}
+{% block crumbs %}<b>Deploy-ууд</b>{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Deploy-ууд</h1><p class="sub">Интернэтэд гарсан бүх апп-ууд. Шинэ апп deploy хийхийн тулд repo-гоо шалгуулж, 80-аас дээш оноо авна.</p></div>
+  <a href="/new/" class="btn primary"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Шинэ апп</a></div>
+{% if services %}
+<table class="table">
+  <thead><tr><th>Апп</th><th>Төлөв</th><th>Хаяг</th><th>Сүүлийн deploy</th></tr></thead>
+  <tbody>
+  {% for s in services %}{% with d=s.latest_deploy %}
+    <tr>
+      <td class="svc-name"><a href="/services/{{ s.pk }}/" class="mono">{{ s.name }}</a></td>
+      <td><span class="chip {{ s.deploy_state }}">{% if s.deploy_state == "building" %}<span class="pulse"></span>{% endif %}{{ s.deploy_label }}</span></td>
+      <td class="mono">{% if s.deploy_state == "live" %}<a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.slug }}.aidolab.mn</a>{% else %}{{ s.slug }}.aidolab.mn{% endif %}</td>
+      <td class="muted">#{{ d.number }} · {{ d.ago }} · <a class="link" href="/services/{{ s.pk }}/logs/">Log</a></td>
+    </tr>
+  {% endwith %}{% endfor %}
+  </tbody>
+</table>
+<p class="help" style="margin-top:14px">{{ plan.name }} багц: {{ services|length }} / {{ plan.apps }} апп.</p>
+{% else %}
+<div class="box empty"><p>Deploy хийсэн апп алга.</p><a href="/" class="btn primary">Үйлчилгээнүүд рүү очих</a></div>
+{% endif %}
+{% endblock %}

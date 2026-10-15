@@ -1,0 +1,24 @@
+{% extends "checker/_hosting_list.html" %}
+{% block title %}Өгөгдлийн сан · aidolab{% endblock %}
+{% block crumbs %}<b>Өгөгдлийн сан</b>{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Өгөгдлийн сан</h1><p class="sub">PostgreSQL өгөгдлийн сангууд. Апп бүр өөрийн тусдаа сантай, өдөр бүр автомат backup хийгдэнэ.</p></div></div>
+{% if services %}
+<table class="table">
+  <thead><tr><th>Нэр</th><th>Апп</th><th>Хувилбар</th><th>Хэмжээ</th><th>Үүсгэсэн</th></tr></thead>
+  <tbody>
+  {% for s in services %}
+    <tr>
+      <td class="svc-name"><a href="/services/{{ s.pk }}/database/" class="mono">{{ s.database.name }}</a></td>
+      <td class="mono">{{ s.name }}</td>
+      <td><span class="tag">PostgreSQL 16</span></td>
+      <td>{{ s.database.size_mb }} MB</td>
+      <td class="muted">{{ s.database.created_at|date:"Y-m-d" }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="box empty"><p>Өгөгдлийн сан алга. Апп-ынхаа "Өгөгдлийн сан" табаас үүсгэнэ.</p><a href="/" class="btn primary">Үйлчилгээнүүд рүү очих</a></div>
+{% endif %}
+{% endblock %}

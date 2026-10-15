@@ -1,0 +1,244 @@
+{% extends "checker/service_base.html" %}
+{% block tab_style %}
+  .viz-root {
+    --surface-1:#ffffff; --grid:#ececef; --axis:#d4d4da;
+    --text-primary:#111114; --text-secondary:#5c5c66; --text-muted:#8b8b95;
+    --series-1:#2a78d6; --series-2:#eb6834;
+  }
+  @media (prefers-color-scheme: dark) {
+    .viz-root {
+      --surface-1:#141418; --grid:#26262d; --axis:#34343c;
+      --text-primary:#ececf1; --text-secondary:#a1a1ab; --text-muted:#71717b;
+      --series-1:#3987e5; --series-2:#d95926;
+    }
+  }
+  .range-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:24px; }
+  .range-row a { padding:7px 14px; border:1px solid var(--line-2); border-radius:6px; font-size:14px; color:var(--muted); }
+  .range-row a.on { background:var(--accent-soft); border-color:var(--accent-line); color:var(--accent); font-weight:500; }
+  .range-row .note { margin-left:auto; color:var(--faint); font-size:13px; }
+  .tiles { display:grid; grid-template-columns:repeat(5, 1fr); border:1px solid var(--line-2); margin-bottom:28px; }
+  .tile { padding:16px 18px; border-left:1px solid var(--line); }
+  .tile:first-child { border-left:0; }
+  .tile .k { font-size:13px; color:var(--muted); }
+  .tile .v { font-size:24px; font-weight:600; letter-spacing:-.01em; margin-top:4px; }
+  .tile .v small { font-size:13px; font-weight:400; color:var(--faint); }
+  .charts { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  .chart-card { border:1px solid var(--line-2); padding:16px 18px 10px; background:var(--surface-1); min-width:0; }
+  .chart-card h3 { margin:0; font-size:15px; font-weight:600; color:var(--text-primary); }
+  .chart-card .cap { font-size:13px; color:var(--text-secondary); margin:2px 0 10px; }
+  .legend { display:flex; gap:16px; font-size:13px; color:var(--text-secondary); margin-bottom:6px; }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .legend i { display:inline-block; width:14px; height:2px; border-radius:1px; }
+  .plot { position:relative; }
+  .plot svg { display:block; width:100%; height:210px; overflow:visible; outline:none; }
+  .plot svg:focus-visible { box-shadow:0 0 0 2px var(--accent); border-radius:4px; }
+  .tick { font-size:11px; fill:var(--text-muted); font-variant-numeric:tabular-nums; }
+  .end-label { font-size:11px; fill:var(--text-secondary); }
+  .tip { position:absolute; pointer-events:none; background:var(--panel); border:1px solid var(--line-2); border-radius:6px; box-shadow:0 6px 18px rgba(0,0,0,.12); padding:8px 10px; font-size:12px; min-width:120px; display:none; z-index:3; }
+  .tip .t { color:var(--text-muted); margin-bottom:4px; }
+  .tip .r { display:flex; align-items:center; gap:8px; }
+  .tip .r b { font-size:13px; color:var(--text-primary); font-variant-numeric:tabular-nums; }
+  .tip .r span { color:var(--text-secondary); }
+  .tip .r i { width:12px; height:2px; border-radius:1px; display:inline-block; }
+  details.tbl { margin-top:6px; font-size:13px; }
+  details.tbl summary { cursor:pointer; color:var(--text-secondary); padding:4px 0; }
+  details.tbl .scroll { max-height:220px; overflow:auto; border-top:1px solid var(--line); margin-top:6px; }
+  details.tbl table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  details.tbl td, details.tbl th { padding:4px 6px; text-align:right; border-bottom:1px solid var(--line); }
+  details.tbl td:first-child, details.tbl th:first-child { text-align:left; }
+  @media (max-width: 1000px) { .charts { grid-template-columns:1fr; } .tiles { grid-template-columns:repeat(3, 1fr); } .tile:nth-child(4) { border-left:0; } .tile:nth-child(n+4) { border-top:1px solid var(--line); } }
+  @media (max-width: 560px) { .tiles { grid-template-columns:1fr 1fr; } .tile:nth-child(odd) { border-left:0; } .tile:nth-child(n+3) { border-top:1px solid var(--line); } .tile:nth-child(4) { border-left:1px solid var(--line); } }
+{% endblock %}
+{% block tab %}
+<section class="viz-root">
+  <div class="range-row">
+    {% for key, r in ranges.items %}<a href="?range={{ key }}" {% if key == range %}class="on"{% endif %}>{{ r.label }}</a>{% endfor %}
+    <span class="note">Нэг цэг = {{ data.bucket_label|default:"—" }}</span>
+  </div>
+
+  {% if data and data.has_data %}
+  {% with s=data.summary %}
+  <div class="tiles">
+    <div class="tile"><div class="k">CPU дундаж</div><div class="v">{{ s.cpu }}<small> %</small></div></div>
+    <div class="tile"><div class="k">Санах ой дундаж</div><div class="v">{{ s.mem }}<small> / {{ data.memory_limit }} MB</small></div></div>
+    <div class="tile"><div class="k">Нийт хүсэлт</div><div class="v">{{ s.requests }}</div></div>
+    <div class="tile"><div class="k">Хариу p95 дундаж</div><div class="v">{{ s.p95 }}<small> ms</small></div></div>
+    <div class="tile"><div class="k">Гарсан урсгал</div><div class="v">{{ s.bandwidth }}<small> MB</small></div></div>
+  </div>
+  {% endwith %}
+
+  <div class="charts">
+    <div class="chart-card"><h3>CPU</h3><div class="cap">Ашиглалт, %</div><div class="plot" data-chart="cpu"></div></div>
+    <div class="chart-card"><h3>Санах ой</h3><div class="cap">MB · хязгаар {{ data.memory_limit }} MB</div><div class="plot" data-chart="mem"></div></div>
+    <div class="chart-card"><h3>HTTP хүсэлт</h3><div class="cap">Минут тутамд</div><div class="plot" data-chart="rpm"></div></div>
+    <div class="chart-card"><h3>Хариу өгөх хугацаа</h3><div class="cap">ms</div>
+      <div class="legend"><span><i style="background:var(--series-1)"></i>p50 (дундаж)</span><span><i style="background:var(--series-2)"></i>p95 (удаан 5%)</span></div>
+      <div class="plot" data-chart="latency"></div></div>
+    <div class="chart-card" style="grid-column:1 / -1"><h3>Гарсан урсгал</h3><div class="cap">MB, {{ data.bucket_label }} тутамд</div><div class="plot" data-chart="bw"></div></div>
+  </div>
+  {{ data|json_script:"metrics-data" }}
+  {% elif data %}
+  <div class="box empty">Энэ хугацаанд өгөгдөл алга. Урт хугацаа сонгоно уу.</div>
+  {% else %}
+  <div class="box empty"><p>Апп deploy хийгдсэний дараа CPU, санах ой, хүсэлт, хариу өгөх хугацааны график энд харагдана.</p></div>
+  {% endif %}
+</section>
+{% endblock %}
+{% block script %}
+<script>
+(function () {
+  const el = document.getElementById("metrics-data");
+  if (!el) return;
+  const D = JSON.parse(el.textContent);
+  const NS = "http://www.w3.org/2000/svg";
+  const CHARTS = {
+    cpu: { series: [{ key: "cpu", name: "CPU", color: "--series-1" }], unit: "%", area: true },
+    mem: { series: [{ key: "mem", name: "Санах ой", color: "--series-1" }], unit: "MB", area: true, ref: D.memory_limit },
+    rpm: { series: [{ key: "rpm", name: "Хүсэлт", color: "--series-1" }], unit: "/мин", area: true },
+    latency: { series: [{ key: "p50", name: "p50", color: "--series-1" }, { key: "p95", name: "p95", color: "--series-2" }], unit: "ms", endLabels: true },
+    bw: { series: [{ key: "bw", name: "Урсгал", color: "--series-1" }], unit: "MB", columns: true },
+  };
+
+  const css = (node, name) => getComputedStyle(node).getPropertyValue(name).trim();
+  const mk = (tag, attrs, parent) => {
+    const n = document.createElementNS(NS, tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+  };
+  // Clean tick step (1/2/2.5/5 × 10^k) for roughly four gridlines.
+  const niceStep = v => {
+    if (v <= 0) return 1;
+    const p = Math.pow(10, Math.floor(Math.log10(v)));
+    for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= v) return m * p;
+  };
+  const fmt = v => v == null ? "—" : (v >= 1000 ? (v / 1000).toFixed(1).replace(/\.0$/, "") + "K" : String(+v.toFixed(v < 10 ? 1 : 0)));
+
+  function draw(plot) {
+    const cfg = CHARTS[plot.dataset.chart];
+    plot.textContent = "";
+    const W = plot.clientWidth, H = 210;
+    const m = { l: 40, r: cfg.endLabels ? 40 : 10, t: 10, b: 24 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const n = D.labels.length;
+    const all = cfg.series.flatMap(s => D[s.key].filter(v => v != null)).concat(cfg.ref ? [cfg.ref] : []);
+    const step = niceStep((Math.max(...all) * 1.05) / 4);
+    const ymax = Math.ceil((Math.max(...all) * 1.05) / step) * step;
+    const band = iw / n;
+    const x = i => m.l + (cfg.columns ? band * (i + 0.5) : (n === 1 ? iw / 2 : (iw * i) / (n - 1)));
+    const y = v => m.t + ih - (v / ymax) * ih;
+    const svg = mk("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", tabindex: "0",
+      "aria-label": plot.closest(".chart-card").querySelector("h3").textContent + " график. Сумаар цэг сонгоно." }, plot);
+
+    // Recessive hairline grid + clean y ticks.
+    for (let v = 0; v <= ymax + 1e-9; v += step) {
+      const yy = y(v);
+      mk("line", { x1: m.l, x2: W - m.r, y1: yy, y2: yy, stroke: css(plot, v ? "--grid" : "--axis"), "stroke-width": 1 }, svg);
+      mk("text", { x: m.l - 6, y: yy + 3.5, "text-anchor": "end", class: "tick" }, svg).textContent = fmt(+v.toFixed(2));
+    }
+    // X ticks: as many as fit (~90px each); multi-day ranges show the date only.
+    const tickText = l => l.includes(" ") ? l.split(" ")[0] : l;
+    const ticks = Math.max(2, Math.min(7, n, Math.floor(iw / 90)));
+    for (let k = 0; k < ticks; k++) {
+      const i = Math.round(((n - 1) * k) / (ticks - 1));
+      mk("text", { x: x(i), y: H - 6, "text-anchor": k === 0 ? "start" : k === ticks - 1 ? "end" : "middle", class: "tick" }, svg).textContent = tickText(D.labels[i]);
+    }
+    if (cfg.ref) {
+      const yy = y(cfg.ref);
+      mk("line", { x1: m.l, x2: W - m.r, y1: yy, y2: yy, stroke: css(plot, "--text-muted"), "stroke-width": 1 }, svg);
+      mk("text", { x: W - m.r, y: yy - 4, "text-anchor": "end", class: "end-label" }, svg).textContent = `Хязгаар ${cfg.ref} MB`;
+    }
+
+    cfg.series.forEach(s => {
+      const color = css(plot, s.color), vals = D[s.key];
+      if (cfg.columns) {
+        const bw = Math.max(1, Math.min(24, band - 2));
+        vals.forEach((v, i) => {
+          if (v == null || v <= 0) return;
+          const x0 = x(i) - bw / 2, y0 = y(v), h = m.t + ih - y0, r = Math.min(4, bw / 2, h);
+          mk("path", { d: `M${x0},${m.t + ih}V${y0 + r}Q${x0},${y0} ${x0 + r},${y0}H${x0 + bw - r}Q${x0 + bw},${y0} ${x0 + bw},${y0 + r}V${m.t + ih}Z`, fill: color }, svg);
+        });
+        return;
+      }
+      // Split into segments at gaps (no data before the first deploy).
+      let seg = [], segs = [];
+      vals.forEach((v, i) => { if (v == null) { if (seg.length) segs.push(seg); seg = []; } else seg.push([x(i), y(v)]); });
+      if (seg.length) segs.push(seg);
+      segs.forEach(pts => {
+        const d = pts.map((p, k) => (k ? "L" : "M") + p[0].toFixed(1) + "," + p[1].toFixed(1)).join("");
+        if (cfg.area) mk("path", { d: d + `L${pts[pts.length - 1][0]},${m.t + ih}L${pts[0][0]},${m.t + ih}Z`, fill: color, "fill-opacity": 0.1 }, svg);
+        mk("path", { d, fill: "none", stroke: color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+      });
+      if (cfg.endLabels) {
+        let last = vals.length - 1;
+        while (last >= 0 && vals[last] == null) last--;
+        if (last >= 0) mk("text", { x: x(last) + 6, y: y(vals[last]) + 4, class: "end-label" }, svg).textContent = s.name;
+      }
+    });
+
+    // Hover layer: crosshair snaps to the nearest point; one tooltip lists every series.
+    const cross = mk("line", { y1: m.t, y2: m.t + ih, stroke: css(plot, "--text-muted"), "stroke-width": 1, visibility: "hidden" }, svg);
+    const dots = cfg.columns ? [] : cfg.series.map(s => mk("circle", { r: 4, fill: css(plot, s.color), stroke: css(plot, "--surface-1"), "stroke-width": 2, visibility: "hidden" }, svg));
+    const tip = document.createElement("div");
+    tip.className = "tip";
+    plot.appendChild(tip);
+    let current = -1;
+    function show(i) {
+      current = i = Math.max(0, Math.min(n - 1, i));
+      const cx = x(i);
+      cross.setAttribute("x1", cx); cross.setAttribute("x2", cx); cross.setAttribute("visibility", "visible");
+      tip.textContent = "";
+      const t = document.createElement("div"); t.className = "t"; t.textContent = D.labels[i]; tip.appendChild(t);
+      cfg.series.forEach((s, k) => {
+        const v = D[s.key][i];
+        if (dots[k]) {
+          dots[k].setAttribute("visibility", v == null ? "hidden" : "visible");
+          if (v != null) { dots[k].setAttribute("cx", cx); dots[k].setAttribute("cy", y(v)); }
+        }
+        const row = document.createElement("div"); row.className = "r";
+        const key = document.createElement("i"); key.style.background = css(plot, s.color);
+        const b = document.createElement("b"); b.textContent = v == null ? "Өгөгдөлгүй" : `${v} ${cfg.unit}`;
+        const name = document.createElement("span"); name.textContent = s.name;
+        row.append(key, b, name); tip.appendChild(row);
+      });
+      tip.style.display = "block";
+      const left = (cx / W) * plot.clientWidth;
+      tip.style.left = Math.min(plot.clientWidth - tip.offsetWidth, Math.max(0, left + 12 - (left > plot.clientWidth / 2 ? tip.offsetWidth + 24 : 0))) + "px";
+      tip.style.top = "8px";
+    }
+    function hide() { cross.setAttribute("visibility", "hidden"); dots.forEach(d => d.setAttribute("visibility", "hidden")); tip.style.display = "none"; current = -1; }
+    svg.addEventListener("pointermove", e => {
+      const r = svg.getBoundingClientRect(), px = ((e.clientX - r.left) / r.width) * W;
+      show(cfg.columns ? Math.floor((px - m.l) / band) : Math.round(((px - m.l) / iw) * (n - 1)));
+    });
+    svg.addEventListener("pointerleave", hide);
+    svg.addEventListener("blur", hide);
+    svg.addEventListener("keydown", e => {
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") { e.preventDefault(); show((current < 0 ? n - 1 : current) + (e.key === "ArrowRight" ? 1 : -1)); }
+      if (e.key === "Escape") hide();
+    });
+
+    // Table view: every value reachable without hovering.
+    const det = document.createElement("details"); det.className = "tbl";
+    const sum = document.createElement("summary"); sum.textContent = "Хүснэгтээр харах"; det.appendChild(sum);
+    const wrap = document.createElement("div"); wrap.className = "scroll";
+    const table = document.createElement("table");
+    const head = table.insertRow(); [["Цаг"], ...cfg.series.map(s => [`${s.name} (${cfg.unit})`])].forEach(([h]) => { const th = document.createElement("th"); th.textContent = h; head.appendChild(th); });
+    for (let i = n - 1; i >= 0; i--) {
+      if (cfg.series.every(s => D[s.key][i] == null)) continue;
+      const tr = table.insertRow();
+      tr.insertCell().textContent = D.labels[i];
+      cfg.series.forEach(s => { tr.insertCell().textContent = D[s.key][i] ?? "—"; });
+    }
+    wrap.appendChild(table); det.appendChild(wrap); plot.appendChild(det);
+  }
+
+  const plots = [...document.querySelectorAll("[data-chart]")];
+  plots.forEach(draw);
+  let raf;
+  new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => plots.forEach(p => { const open = p.querySelector("details")?.open; draw(p); if (open) p.querySelector("details").open = true; })); })
+    .observe(document.querySelector(".charts"));
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => plots.forEach(draw));
+})();
+</script>
+{% endblock %}

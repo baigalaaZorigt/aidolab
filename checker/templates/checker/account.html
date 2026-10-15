@@ -1,0 +1,60 @@
+{% extends "checker/base.html" %}
+{% block title %}Бүртгэл · aidolab{% endblock %}
+{% block crumbs %}<b>Бүртгэл</b>{% endblock %}
+{% block style %}
+  .wrap { max-width:720px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width: 600px) { .grid2 { grid-template-columns:1fr; } }
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <div class="page-head" style="margin-bottom:32px"><h1>Бүртгэл</h1></div>
+
+  <section>
+    <form method="post" class="box">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="profile">
+      <div class="box-head"><h3>Хувийн мэдээлэл</h3></div>
+      <div class="box-body">
+        <div class="field">
+          <label for="name">Нэр</label>
+          <div class="input"><input id="name" name="name" required value="{{ user.first_name }}"></div>
+        </div>
+        <div class="field">
+          <label>Имэйл</label>
+          <div class="input"><input value="{{ user.email }}" disabled></div>
+          <div class="help">Имэйл солих бол багшдаа хандана уу.</div>
+        </div>
+        <button type="submit" class="btn primary">Хадгалах</button>
+      </div>
+    </form>
+  </section>
+
+  <section>
+    <form method="post" class="box">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="password">
+      <div class="box-head"><h3>Нууц үг солих</h3></div>
+      <div class="box-body">
+        <div class="field">
+          <label for="old_password">Одоогийн нууц үг</label>
+          <div class="input"><input id="old_password" name="old_password" type="password" required autocomplete="current-password"></div>
+        </div>
+        <div class="field">
+          <label for="new_password">Шинэ нууц үг</label>
+          <div class="input"><input id="new_password" name="new_password" type="password" required minlength="8" autocomplete="new-password"></div>
+          <div class="help">Хамгийн багадаа 8 тэмдэгт, үсэг тоо холих.</div>
+        </div>
+        <button type="submit" class="btn">Нууц үг солих</button>
+      </div>
+    </form>
+  </section>
+
+  <section>
+    <div class="box box-body grid2">
+      <div><div class="muted" style="font-size:13px">Бүртгүүлсэн</div>{{ user.date_joined|date:"Y-m-d" }}</div>
+      <div><div class="muted" style="font-size:13px">Үйлчилгээ</div>{{ user.services.count }}</div>
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "checker/service_base.html" %}
+{% block tab_style %}
+  .slug-form { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; }
+  .slug-form .field { margin:0; flex:1; min-width:260px; }
+  .suffix { color:var(--faint); font-family:"JetBrains Mono", ui-monospace, monospace; font-size:14px; white-space:nowrap; }
+{% endblock %}
+{% block tab %}
+<section>
+  <h2>Тохиргоо</h2>
+  <form method="post" class="box box-body slug-form">
+    {% csrf_token %}
+    <div class="field">
+      <label for="slug">Апп-ын хаяг</label>
+      <div class="input"><span class="suffix">https://</span><input id="slug" name="slug" required value="{{ service.slug }}" class="mono" pattern="[a-z0-9-]{3,40}" style="padding-left:0"><span class="suffix">.aidolab.mn</span></div>
+      <div class="help">3–40 тэмдэгт: жижиг латин үсэг, тоо, зураас (-).</div>
+    </div>
+    <button type="submit" class="btn primary">Хадгалах</button>
+  </form>
+</section>
+
+<section>
+  <h2>Repo</h2>
+  <div class="box box-body">
+    <div class="muted" style="font-size:14px">GitHub repo</div>
+    <a href="{{ service.repo_url }}" target="_blank" rel="noopener" class="mono">{{ service.repo_url }}</a>
+    <div class="help">Өөр repo холбох бол шинэ үйлчилгээ үүсгэнэ үү.</div>
+  </div>
+</section>
+
+<section>
+  {% if service.latest_deploy %}
+  <div class="danger-zone" style="border-color:var(--line-2)">
+    <div><b>{% if service.suspended %}Апп-ыг асаах{% else %}Апп-ыг түр зогсоох{% endif %}</b><p>{% if service.suspended %}Апп дахин ажиллаж эхэлнэ.{% else %}Апп зогсож, хаяг нь түр нээгдэхгүй. Өгөгдөл хадгалагдана.{% endif %}</p></div>
+    <form method="post" action="/services/{{ service.pk }}/suspend/">{% csrf_token %}
+      <button type="submit" class="btn">{% if service.suspended %}Асаах{% else %}Түр зогсоох{% endif %}</button></form>
+  </div>
+  {% endif %}
+  <div class="danger-zone">
+    <div><b>Үйлчилгээг устгах</b><p>Deploy, өгөгдлийн сан, файл, орчны хувьсагч, домэйн бүгд устгагдана. Таны GitHub repo-д нөлөөлөхгүй.</p></div>
+    <form method="post" action="/services/{{ service.pk }}/delete/" onsubmit="return confirm('{{ service.name|escapejs }}-г устгах уу? Буцаах боломжгүй.')">
+      {% csrf_token %}<button type="submit" class="btn danger">Устгах</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

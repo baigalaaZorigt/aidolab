@@ -1,0 +1,23 @@
+{% extends "checker/_hosting_list.html" %}
+{% block title %}Файл хадгалах · aidolab{% endblock %}
+{% block crumbs %}<b>Файл хадгалах</b>{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Файл хадгалах</h1><p class="sub">Хэрэглэгчийн upload хийсэн зураг, файл. Redeploy хийхэд устахгүй.</p></div></div>
+{% if services %}
+<table class="table">
+  <thead><tr><th>Апп</th><th>Байршил</th><th>Ашиглалт</th><th>Идэвхжүүлсэн</th></tr></thead>
+  <tbody>
+  {% for s in services %}
+    <tr>
+      <td class="svc-name"><a href="/services/{{ s.pk }}/storage/" class="mono">{{ s.name }}</a></td>
+      <td class="mono">{{ s.bucket.BUCKET }}/{{ s.bucket.prefix }}</td>
+      <td>{{ s.bucket.used_mb }} MB / {{ plan.storage_mb }} MB</td>
+      <td class="muted">{{ s.bucket.created_at|date:"Y-m-d" }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="box empty"><p>Файлын сан алга. Апп-ынхаа "Файл" табаас идэвхжүүлнэ.</p><a href="/" class="btn primary">Үйлчилгээнүүд рүү очих</a></div>
+{% endif %}
+{% endblock %}

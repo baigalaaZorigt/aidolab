@@ -1,0 +1,53 @@
+{% extends "checker/service_base.html" %}
+{% block tab_style %}
+  .env-form { display:grid; grid-template-columns:1fr 1.4fr auto; gap:12px; align-items:end; }
+  .env-form .field { margin:0; }
+  .platform { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  @media (max-width: 700px) { .env-form { grid-template-columns:1fr; } }
+{% endblock %}
+{% block tab %}
+<section>
+  <h2>Орчны хувьсагч</h2>
+  <p class="sub" style="margin:-8px 0 22px">API түлхүүр, нууц үгээ кодонд бичихгүйгээр энд хадгална. Апп ажиллахдаа <code>os.environ["НЭР"]</code>-ээр уншина. Хадгалсны дараа утгыг дахин харуулахгүй.</p>
+
+  <form method="post" class="box box-body env-form" autocomplete="off">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="save">
+    <div class="field">
+      <label for="key">Нэр</label>
+      <div class="input"><input id="key" name="key" required placeholder="OPENAI_API_KEY" pattern="[A-Za-z_][A-Za-z0-9_]*" style="text-transform:uppercase" class="mono"></div>
+    </div>
+    <div class="field">
+      <label for="value">Утга</label>
+      <div class="input"><input id="value" name="value" type="password" required placeholder="••••••••" autocomplete="new-password"></div>
+    </div>
+    <button type="submit" class="btn primary">Хадгалах</button>
+  </form>
+
+  {% if env_vars %}
+  <table class="table" style="margin-top:24px">
+    <thead><tr><th>Нэр</th><th>Утга</th><th>Шинэчилсэн</th><th style="width:60px"></th></tr></thead>
+    <tbody>
+    {% for v in env_vars %}
+      <tr>
+        <td class="mono">{{ v.key }}</td>
+        <td class="mono muted">••••••••</td>
+        <td class="muted">{{ v.updated_at|date:"Y-m-d H:i" }}</td>
+        <td>
+          <form method="post" onsubmit="return confirm('{{ v.key|escapejs }}-г устгах уу?')">
+            {% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="key" value="{{ v.key }}">
+            <button type="submit" class="btn danger" style="padding:5px 10px">Устгах</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="box empty" style="margin-top:24px">Орчны хувьсагч нэмээгүй байна.</div>
+  {% endif %}
+
+  <p class="help" style="margin-top:20px">Систем автоматаар тохируулах хувьсагчид (өөрчлөх боломжгүй):</p>
+  <div class="platform">{% for k, on in platform_keys %}<span class="tag mono" {% if not on %}style="opacity:.45" title="Өгөгдлийн сан эсвэл файлын сан үүсгэхэд идэвхжинэ"{% endif %}>{% if on %}✓ {% endif %}{{ k }}</span>{% endfor %}</div>
+</section>
+{% endblock %}

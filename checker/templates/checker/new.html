@@ -1,0 +1,52 @@
+{% extends "checker/base.html" %}
+{% block title %}Шинэ шалгалт · aidolab{% endblock %}
+{% block crumbs %}<a href="/">Тойм</a><span>/</span><b>Шинэ шалгалт</b>{% endblock %}
+{% block style %}
+  .wrap { max-width:720px; }
+  .form { border:1px solid var(--line-2); padding:28px; background:var(--panel); }
+  .field { margin-bottom:20px; }
+  .checks { margin:36px 0 0; padding:0; list-style:none; display:grid; grid-template-columns:1fr 1fr; gap:14px 28px; color:var(--muted); font-size:14px; }
+  .checks li { display:flex; gap:10px; }
+  .checks svg { color:var(--ok); margin-top:3px; }
+  .checks-title { font-family:"JetBrains Mono", ui-monospace, monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); margin-top:40px; }
+  @media (max-width: 600px) { .checks { grid-template-columns:1fr; } .form { padding:20px; } }
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <div class="page-head" style="margin-bottom:32px">
+    <div>
+      <h1>Шинэ шалгалт</h1>
+      <p class="sub">GitHub repo-гоо холбоод deploy хийхэд бэлэн эсэхийг шалгуулаарай. Таны кодыг ажиллуулахгүй, зөвхөн уншиж шалгана.</p>
+    </div>
+  </div>
+
+  {% if error %}
+  <div class="alert"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><div>{{ error }}</div></div>
+  {% endif %}
+
+  {% include "checker/_scanlog.html" %}
+
+  <form method="post" class="form" data-scan>
+    {% csrf_token %}
+    <div class="field">
+      <label for="repo_url">GitHub repo-гийн линк</label>
+      <div class="input">
+        <svg class="i" viewBox="0 0 24 24"><path d="M9 19c-4 1.5-4-2-6-2.5M15 21v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 00-1.3-3.2 4.2 4.2 0 00-.1-3.2s-1-.3-3.4 1.3a11.5 11.5 0 00-6.2 0C6.6 2.8 5.6 3.1 5.6 3.1a4.2 4.2 0 00-.1 3.2A4.6 4.6 0 004.2 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg>
+        <input id="repo_url" name="repo_url" type="url" required placeholder="https://github.com/нэр/repo" value="{{ repo_url }}" autofocus>
+      </div>
+      <div class="help">Public repo · 50MB хүртэл</div>
+    </div>
+    <button type="submit" class="btn primary" data-scan-btn><svg class="i" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg> Шалгах</button>
+  </form>
+
+  <div class="checks-title">Юуг шалгах вэ</div>
+  <ul class="checks">
+    <li><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Кодонд ил бичигдсэн нууц түлхүүр, API key</li>
+    <li><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>.env файл, .gitignore</li>
+    <li><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>DEBUG, SECRET_KEY, ALLOWED_HOSTS тохиргоо</li>
+    <li><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>requirements.txt, gunicorn/uvicorn</li>
+    <li><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Эмзэг сан (OSV мэдээллийн сан)</li>
+    <li><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Аюултай код (Bandit)</li>
+  </ul>
+</div>
+{% endblock %}

@@ -1,0 +1,69 @@
+{% extends "checker/base.html" %}
+{% block title %}Төлбөр · aidolab{% endblock %}
+{% block crumbs %}<b>Төлбөр</b>{% endblock %}
+{% block style %}
+  .plans { display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:20px; max-width:980px; margin-bottom:48px; }
+  .plan { border:1px solid var(--line-2); padding:24px; background:var(--panel); display:flex; flex-direction:column; gap:14px; }
+  .plan.current { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .plan h3 { margin:0; font-size:18px; }
+  .plan .price { font-size:28px; font-weight:600; letter-spacing:-.02em; }
+  .plan .price small { font-size:14px; color:var(--muted); font-weight:400; }
+  .plan ul { margin:0; padding:0; list-style:none; display:grid; gap:8px; color:var(--muted); font-size:14px; flex:1; }
+  .plan li { display:flex; gap:8px; }
+  .plan li svg { color:var(--ok); margin-top:3px; }
+  .plan .btn { justify-content:center; width:100%; }
+{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Төлбөр</h1>
+    <p class="sub">Одоогийн багц: <b>{{ plan.name }}</b>{% if profile.plan_until and current != "free" %} · {{ profile.plan_until|date:"Y-m-d" }} хүртэл{% endif %}. Төгрөгөөр, QPay-ээр төлнө.</p>
+  </div>
+</div>
+<div class="plans">
+  {% for p in plans %}
+  <div class="plan {% if p.key == current %}current{% endif %}">
+    {% if p.key == current %}<div><span class="tag">Одоогийн</span></div>{% elif p.key == "student" %}<div><span class="tag">Санал болгох</span></div>{% else %}<div style="height:26px"></div>{% endif %}
+    <h3>{{ p.name }}</h3>
+    <div class="price">{{ p.price_label }}{% if p.price %}<small> / сар</small>{% endif %}</div>
+    <ul>
+      <li><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Repo шалгалт, AI зөвлөгөө</li>
+      <li><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>{{ p.apps }} апп deploy</li>
+      {% if p.database %}<li><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>PostgreSQL өгөгдлийн сан</li>{% endif %}
+      {% if p.storage_mb %}<li><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Файл хадгалах {% if p.storage_mb >= 1024 %}{% widthratio p.storage_mb 1024 1 %} GB{% endif %}</li>{% endif %}
+      {% if p.domains %}<li><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Өөрийн домэйн ({{ p.domains }}/апп) + SSL</li>{% endif %}
+      {% if p.dedicated_ip %}<li><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Dedicated IP</li>{% endif %}
+      <li><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>{% if p.sleeps %}Ашиглаагүй үед апп унтарна{% else %}Үргэлж асаалттай{% endif %}</li>
+    </ul>
+    {% if p.key == current %}
+      <button class="btn" disabled>Идэвхтэй</button>
+    {% else %}
+      <form method="post">{% csrf_token %}<input type="hidden" name="plan" value="{{ p.key }}">
+        <button class="btn {% if p.price %}primary{% endif %}">{% if p.price %}Сонгох{% else %}Үнэгүй рүү шилжих{% endif %}</button></form>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<section>
+  <h2>Нэхэмжлэх</h2>
+  {% if invoices %}
+  <table class="table">
+    <thead><tr><th>Дугаар</th><th>Багц</th><th>Дүн</th><th>Огноо</th><th>Төлөв</th></tr></thead>
+    <tbody>
+    {% for i in invoices %}
+      <tr>
+        <td class="mono"><a href="/billing/invoice/{{ i.pk }}/" class="link">{{ i.number }}</a></td>
+        <td>{% if i.plan == "student" %}Сурагч{% elif i.plan == "pro" %}Pro{% else %}{{ i.plan }}{% endif %}</td>
+        <td>{{ i.amount_label }}</td>
+        <td class="muted">{{ i.created_at|date:"Y-m-d" }}</td>
+        <td>{% if i.paid_at %}<span class="chip live">Төлөгдсөн</span>{% else %}<span class="chip warn">Хүлээгдэж байна</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="box empty">Нэхэмжлэх алга.</div>
+  {% endif %}
+</section>
+{% endblock %}

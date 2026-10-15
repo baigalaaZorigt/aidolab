@@ -1,0 +1,13 @@
+# Dashboard. Caddy gets and renews the Let's Encrypt certificate automatically
+# once app.aidolab.mn points at this server's Elastic IP and ports 80/443 are open.
+app.aidolab.mn {
+	encode zstd gzip
+	handle_path /static/* {
+		root * /srv/aidolab/app/staticfiles
+		file_server
+	}
+	reverse_proxy 127.0.0.1:8000
+}
+
+# Student apps (*.aidolab.mn) and custom domains are added when real hosting starts
+# (wildcard cert via Route 53 DNS-01 + on-demand TLS) — see HOSTING_PLAN.md 3б.

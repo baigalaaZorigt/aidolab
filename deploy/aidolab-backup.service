@@ -1,0 +1,7 @@
+[Unit]
+Description=aidolab SQLite backup
+
+[Service]
+Type=oneshot
+User=aidolab
+ExecStart=/srv/aidolab/app/deploy/backup.sh

@@ -1,0 +1,22 @@
+{% extends "checker/auth_base.html" %}
+{% block title %}Нэвтрэх · aidolab{% endblock %}
+{% block content %}
+<h1>Нэвтрэх</h1>
+<p class="sub">Ажлын талбартаа нэвтэрнэ үү.</p>
+{% if error %}<div class="alert"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><div>{{ error }}</div></div>{% endif %}
+<form method="post">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ next }}">
+  <div class="field">
+    <label for="email">Имэйл</label>
+    <div class="input"><input id="email" name="email" type="text" inputmode="email" required autocomplete="username" value="{{ email|default:'' }}" autofocus></div>
+  </div>
+  <div class="field">
+    <label for="password">Нууц үг</label>
+    <div class="input"><input id="password" name="password" type="password" required autocomplete="current-password"></div>
+    <div class="help">Нууц үгээ мартсан бол багшаасаа сэргээлгэнэ үү.</div>
+  </div>
+  <button type="submit" class="btn primary">Нэвтрэх</button>
+</form>
+<p class="switch">Бүртгэлгүй юу? <a href="/signup/">Бүртгүүлэх</a></p>
+{% endblock %}

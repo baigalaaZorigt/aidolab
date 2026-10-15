@@ -1,0 +1,138 @@
+{% extends "checker/base.html" %}
+{% block style %}
+  .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:28px; max-width:1000px; }
+  .card { border:1px solid var(--line-2); padding:22px; min-height:146px; display:flex; flex-direction:column; justify-content:space-between; gap:18px; background:var(--panel); }
+  .card h3 { margin:0; font-size:17px; font-weight:600; }
+  .card.new { border-style:dashed; align-items:center; justify-content:center; font-size:17px; flex-direction:row; gap:10px; }
+  .card.new:hover { background:var(--hover); }
+  .tabs { display:inline-flex; border:1px solid var(--line-2); margin-bottom:28px; }
+  .tabs button { background:var(--panel); border:0; border-left:1px solid var(--line-2); padding:8px 12px; font:inherit; font-size:15px; color:var(--muted); cursor:pointer; }
+  .tabs button:first-child { border-left:0; }
+  .tabs button.on { background:var(--accent-soft); color:var(--accent); }
+  .search { margin-bottom:28px; }
+  .svc-name { display:inline-flex; align-items:center; gap:12px; font-weight:500; }
+  .svc-name a { text-decoration:underline; text-underline-offset:3px; text-decoration-color:var(--line-2); }
+  .svc-name a:hover { text-decoration-color:currentColor; }
+  .sub-url { display:block; color:var(--faint); font-size:12.5px; font-weight:400; margin-top:2px; }
+  .menu { position:relative; }
+  .menu summary { list-style:none; cursor:pointer; padding:2px 8px; border-radius:4px; color:var(--muted); font-weight:700; letter-spacing:1px; }
+  .menu summary::-webkit-details-marker { display:none; }
+  .menu summary:hover { background:var(--line); }
+  .menu-list { position:absolute; right:0; top:calc(100% + 4px); background:var(--panel); border:1px solid var(--line-2); border-radius:6px; box-shadow:0 8px 24px rgba(0,0,0,.08); min-width:160px; z-index:5; padding:4px; }
+  .menu-list a, .menu-list button { display:block; width:100%; text-align:left; padding:8px 10px; border-radius:4px; font:inherit; font-size:14px; background:none; border:0; color:var(--text); cursor:pointer; }
+  .menu-list a:hover, .menu-list button:hover { background:var(--hover); }
+  .menu-list button { color:var(--high); }
+  .empty { border:1px dashed var(--line-2); padding:48px 24px; text-align:center; color:var(--muted); }
+  .empty p { margin:0 0 16px; }
+  @media (max-width: 900px) {
+    .table thead { display:none; }
+    .table tr { display:grid; grid-template-columns:1fr auto; gap:6px 12px; padding:14px 4px; border-bottom:1px solid var(--line); }
+    .table td { padding:0; border:0; }
+    .table td.c-name { grid-column:1; }
+    .table td.c-menu { grid-column:2; grid-row:1; }
+    .table td.c-runtime, .table td.c-score { display:none; }
+  }
+{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Тойм</h1><p class="sub">Сайн уу, {{ user.first_name }}! Repo-гоо шалгуулж, оноогоо 80-аас дээш гаргаарай.</p></div>
+  <a href="/new/" class="btn primary"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Шинэ repo шалгах</a>
+</div>
+
+<section>
+  <h2>Ажлын талбар</h2>
+  <div class="cards">
+    <div class="card">
+      <h3>Миний үйлчилгээнүүд</h3>
+      <div>
+        {% if not services %}
+          <span class="muted">Одоогоор үйлчилгээ алга</span>
+        {% elif ready_count == services|length %}
+          <span class="chip ready"><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Бүх үйлчилгээ deploy хийхэд бэлэн</span>
+        {% else %}
+          <span class="chip warn"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>{{ todo_count }} үйлчилгээнд засвар хэрэгтэй</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card">
+      <h3>Ажиллаж байгаа апп</h3>
+      <div><span style="font-size:28px; font-weight:600">{{ live_count }}</span> <span class="muted">/ {{ plan.apps }} ({{ plan.name }} багц)</span></div>
+    </div>
+    <a href="/new/" class="card new"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Шинэ repo шалгах</a>
+  </div>
+</section>
+
+<section>
+  <h2>Үйлчилгээнүүд</h2>
+  {% if services %}
+  <div class="tabs" role="tablist">
+    <button type="button" class="on" data-tab="all">Бүгд ({{ services|length }})</button>
+    <button type="button" data-tab="ready">Бэлэн ({{ ready_count }})</button>
+    <button type="button" data-tab="todo">Засах ({{ todo_count }})</button>
+  </div>
+  <div class="input search">
+    <svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    <input type="search" id="q" placeholder="Үйлчилгээ хайх" autocomplete="off">
+  </div>
+  <table class="table">
+    <thead><tr>
+      <th>Үйлчилгээний нэр <span class="count">{{ services|length }}</span></th>
+      <th>Төлөв</th><th>Аюулгүй байдал</th><th>Runtime</th><th>Шинэчилсэн</th><th style="width:48px"></th>
+    </tr></thead>
+    <tbody>
+    {% for s in services %}
+      <tr data-status="{{ s.status }}" data-name="{{ s.name|lower }}">
+        <td class="c-name"><span class="svc-name">
+          <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>
+          <span><a href="/services/{{ s.pk }}/" class="mono">{{ s.name }}</a><span class="sub-url mono">{{ s.slug }}.aidolab.mn</span></span></span></td>
+        <td><span class="chip {{ s.deploy_state }}">{% if s.deploy_state == "live" %}<svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>{% elif s.deploy_state == "building" %}<span class="pulse"></span>{% endif %}{{ s.deploy_label }}</span></td>
+        <td class="c-score"><span class="chip {{ s.status }}">{{ s.score }}/100</span></td>
+        <td class="c-runtime"><span class="tag">Python</span></td>
+        <td class="muted">{{ s.updated_ago }}</td>
+        <td class="c-menu">
+          <details class="menu">
+            <summary aria-label="Үйлдэл">···</summary>
+            <div class="menu-list">
+              <a href="/services/{{ s.pk }}/">Нээх</a>
+              <a href="{{ s.repo_url }}" target="_blank" rel="noopener">GitHub дээр харах</a>
+              <form method="post" action="/services/{{ s.pk }}/delete/" onsubmit="return confirm('{{ s.name|escapejs }}-г жагсаалтаас устгах уу?')">
+                {% csrf_token %}<button type="submit">Устгах</button>
+              </form>
+            </div>
+          </details>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">
+    <p>Та одоогоор repo шалгуулаагүй байна. Эхний repo-гоо шалгуулж, оноогоо 80-аас дээш гаргаад deploy хийгээрэй.</p>
+    <a href="/new/" class="btn primary"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Шинэ repo шалгах</a>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
+{% block script %}
+<script>
+  // Client-side tab + search filter over the service table.
+  const rows = [...document.querySelectorAll("tbody tr[data-status]")];
+  let tab = "all";
+  function apply() {
+    const q = (document.getElementById("q")?.value || "").trim().toLowerCase();
+    rows.forEach(r => {
+      const okTab = tab === "all" || (tab === "ready" ? r.dataset.status === "ready" : r.dataset.status !== "ready");
+      r.style.display = okTab && r.dataset.name.includes(q) ? "" : "none";
+    });
+  }
+  document.querySelectorAll("[data-tab]").forEach(b => b.addEventListener("click", () => {
+    document.querySelectorAll("[data-tab]").forEach(x => x.classList.toggle("on", x === b));
+    tab = b.dataset.tab; apply();
+  }));
+  document.getElementById("q")?.addEventListener("input", apply);
+  // Close other open row menus when one opens.
+  document.querySelectorAll("details.menu").forEach(d => d.addEventListener("toggle", () => {
+    if (d.open) document.querySelectorAll("details.menu[open]").forEach(o => o !== d && (o.open = false));
+  }));
+</script>
+{% endblock %}

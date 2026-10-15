@@ -1,0 +1,45 @@
+{% extends "checker/service_base.html" %}
+{% block tab_style %}
+  .log-box { border:1px solid var(--line-2); border-radius:8px; overflow:hidden; }
+  .log-box .log { min-height:340px; }
+  .log-line { white-space:pre-wrap; word-break:break-all; }
+{% endblock %}
+{% block tab %}
+<section>
+  {% if deploy %}
+  <div class="log-box">
+    <div class="log-head">
+      <span>Deploy #{{ deploy.number }} · {{ deploy.started_at|date:"Y-m-d H:i" }}</span>
+      {% if deploy.status == "building" %}<span class="chip building" id="log-status"><span class="pulse"></span>Бүтээж байна</span>
+      {% else %}<span class="chip live"><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Амжилттай</span>{% endif %}
+    </div>
+    <div class="log" id="deploy-log" data-elapsed="{{ deploy.elapsed }}" data-building="{% if deploy.status == 'building' %}1{% endif %}">
+      {% for line in deploy.logs %}<div class="log-line" data-at="{{ line.0 }}"><span class="ts">{{ deploy.started_at|date:"H:i:s" }}+{{ line.0 }}s</span>{{ line.1 }}</div>{% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <div class="box empty">Log алга. Deploy хийсний дараа энд харагдана.</div>
+  {% endif %}
+</section>
+{% endblock %}
+{% block script %}
+<script>
+  // While a deploy is building, reveal log lines at their offsets, then reload to show the live state.
+  const box = document.getElementById("deploy-log");
+  if (box && box.dataset.building) {
+    const t0 = Date.now() - Number(box.dataset.elapsed) * 1000;
+    const lines = [...box.querySelectorAll("[data-at]")];
+    const cursor = document.createElement("span");
+    cursor.className = "cursor";
+    const tick = () => {
+      const s = (Date.now() - t0) / 1000;
+      let last = null;
+      lines.forEach(l => { const show = Number(l.dataset.at) <= s; l.style.display = show ? "" : "none"; if (show) last = l; });
+      if (last) last.appendChild(cursor);
+      if (s >= Number(lines[lines.length - 1].dataset.at) + 1) location.reload();
+      else setTimeout(tick, 400);
+    };
+    tick();
+  }
+</script>
+{% endblock %}

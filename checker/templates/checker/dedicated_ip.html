@@ -1,0 +1,76 @@
+{% extends "checker/base.html" %}
+{% block title %}Dedicated IP · aidolab{% endblock %}
+{% block crumbs %}<b>Dedicated IP</b>{% endblock %}
+{% block style %}
+  .wrap { max-width:860px; }
+  .ip { font-family:"JetBrains Mono", ui-monospace, monospace; font-size:22px; font-weight:500; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
+  .svc-list { display:grid; gap:2px; margin:6px 0 18px; }
+  .svc-list label { display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:6px; font-weight:400; margin:0; cursor:pointer; }
+  .svc-list label:hover { background:var(--hover); }
+  .svc-list input { width:auto; flex:none; accent-color:var(--accent); }
+  .why { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px; margin-top:8px; }
+  .why div { border:1px solid var(--line); padding:14px 16px; font-size:14px; color:var(--muted); }
+  .why b { display:block; color:var(--text); margin-bottom:4px; font-weight:600; }
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <div class="page-head"><div><h1>Dedicated IP</h1><p class="sub">Апп-ын тань гадагшаа (банк, төлбөрийн систем, гадны өгөгдлийн сан руу) хийх хүсэлт тогтмол IP хаягаас явна. Гадны үйлчилгээний "зөвшөөрөгдсөн IP" жагсаалтад нэмэхэд хэрэгтэй.</p></div></div>
+
+  <section>
+    <div class="box">
+      <div class="box-head"><h3>Хуваалцсан гарах IP</h3><span class="tag">Бүх багцад</span></div>
+      <div class="box-body row">
+        <div><button type="button" class="copy ip" data-copy="{{ shared_ip }}">{{ shared_ip }}</button>
+          <div class="help">Dedicated IP-гүй бүх апп энэ хаягаар гадагшаа гарна. Бусад хэрэглэгчидтэй хуваалцана.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    {% if current %}
+    <form method="post" class="box">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="assign">
+      <div class="box-head"><h3>Таны Dedicated IP</h3><span class="chip live"><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Идэвхтэй</span></div>
+      <div class="box-body">
+        <button type="button" class="copy ip" data-copy="{{ current.address }}">{{ current.address }}</button>
+        <div class="help" style="margin-bottom:18px">{{ current.created_at|date:"Y-m-d" }}-нд авсан. Зөвхөн таны апп-ууд ашиглана.</div>
+        <label>Энэ IP-г ашиглах апп-ууд</label>
+        <div class="svc-list">
+          {% for s in services %}
+          <label><input type="checkbox" name="services" value="{{ s.pk }}" {% if s.use_dedicated_ip %}checked{% endif %}><span class="mono">{{ s.name }}</span><span class="muted" style="margin-left:auto; font-size:13px">{{ s.deploy_label }}</span></label>
+          {% empty %}<p class="muted">Апп алга.</p>{% endfor %}
+        </div>
+        <button class="btn primary">Хадгалах</button>
+        <p class="help">Өөрчлөлт дараагийн deploy-оос хэрэгжинэ.</p>
+      </div>
+    </form>
+    <div class="danger-zone" style="margin-top:24px">
+      <div><b>Dedicated IP цуцлах</b><p>Энэ хаяг танаас чөлөөлөгдөж, апп-ууд хуваалцсан IP руу шилжинэ. Гадны үйлчилгээний IP жагсаалтаа шинэчлэхээ мартуузай.</p></div>
+      <form method="post" onsubmit="return confirm('Dedicated IP цуцлах уу? Энэ хаягийг буцааж авах боломжгүй.')">{% csrf_token %}<input type="hidden" name="action" value="release"><button class="btn danger">Цуцлах</button></form>
+    </div>
+    {% else %}
+    <div class="box box-body">
+      <h3 style="margin:0 0 6px">Dedicated IP авах</h3>
+      <p class="muted" style="margin:0 0 18px">Зөвхөн таны апп-уудад зориулсан тогтмол гарах IP хаяг.</p>
+      {% if plan_allows %}
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="enable"><button class="btn primary">Dedicated IP авах</button></form>
+      {% else %}
+      <a href="/billing/" class="btn primary">Pro багц руу шилжих</a>
+      <p class="help">Dedicated IP нь Pro багцад багтдаг. Одоогийн багц: {{ plan.name }}.</p>
+      {% endif %}
+    </div>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>Хэзээ хэрэгтэй вэ?</h2>
+    <div class="why">
+      <div><b>Банк, төлбөрийн API</b>QPay, банкны API зөвхөн бүртгэсэн IP-ээс хүсэлт хүлээж авдаг.</div>
+      <div><b>Гадны өгөгдлийн сан</b>MongoDB Atlas зэрэг үйлчилгээ IP allowlist шаарддаг.</div>
+      <div><b>Байгууллагын систем</b>Сургууль, компанийн дотоод API-д хандахад.</div>
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="mn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}aidolab{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+{% include "checker/_styles.html" %}
+<style>
+  body { background:var(--side); }
+  .auth { min-height:100vh; display:grid; grid-template-columns:1fr 1fr; }
+  .auth-side { background:var(--text); color:var(--bg); padding:56px; display:flex; flex-direction:column; justify-content:space-between; }
+  .auth-side .brand { display:flex; align-items:center; gap:10px; font-weight:600; font-size:18px; }
+  .auth-side .brand span { width:28px; height:28px; border-radius:7px; background:var(--bg); color:var(--text); display:grid; place-items:center; font-weight:700; }
+  .auth-side h2 { font-size:34px; font-weight:500; letter-spacing:-.02em; line-height:1.25; margin:0 0 20px; max-width:460px; }
+  .auth-side ul { list-style:none; padding:0; margin:0; display:grid; gap:12px; opacity:.85; }
+  .auth-side li { display:flex; gap:10px; }
+  .auth-side .foot { opacity:.6; font-size:13px; }
+  .auth-main { display:grid; place-items:center; padding:40px 16px; }
+  .auth-card { width:100%; max-width:400px; }
+  .auth-card h1 { font-size:28px; margin-bottom:6px; }
+  .auth-card .sub { margin:0 0 28px; }
+  .auth-card .btn { width:100%; justify-content:center; padding:12px; }
+  .switch { margin-top:22px; text-align:center; color:var(--muted); font-size:14px; }
+  .switch a { color:var(--accent); font-weight:500; }
+  @media (max-width: 860px) { .auth { grid-template-columns:1fr; } .auth-side { display:none; } }
+</style>
+</head>
+<body>
+<div class="auth">
+  <aside class="auth-side">
+    <div class="brand"><span>a</span>aidolab</div>
+    <div>
+      <h2>Аппаа аюулгүй шалгаад, нэг товчоор интернэтэд гарга.</h2>
+      <ul>
+        <li><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Нууц түлхүүр, тохиргоо, эмзэг сангуудыг автоматаар шалгана</li>
+        <li><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Алдаа бүрийг монголоор, засах алхамтай нь тайлбарлана</li>
+        <li><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg><code>нэр.aidolab.mn</code> хаягтай hosting, өгөгдлийн сан, өөрийн домэйн, автомат SSL</li>
+      </ul>
+    </div>
+    <div class="foot">AI Academy Asia</div>
+  </aside>
+  <main class="auth-main">
+    <div class="auth-card">{% block content %}{% endblock %}</div>
+  </main>
+</div>
+</body>
+</html>

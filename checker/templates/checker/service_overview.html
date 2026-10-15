@@ -1,0 +1,60 @@
+{% extends "checker/service_base.html" %}
+{% block tab %}
+{% with c=service.counts %}
+<div class="stats">
+  <div class="stat">
+    <div class="k">Нийт оноо</div>
+    <div class="v c-{{ service.status }}">{{ service.score }}<small> / 100</small></div>
+    <div class="meter"><span class="b-{{ service.status }}" style="width:{{ service.score }}%"></span></div>
+    <div class="help">{% if service.status == "ready" %}Deploy хийхэд бэлэн 🎉{% else %}80-аас дээш гаргаад deploy хийгээрэй{% endif %}</div>
+  </div>
+  <div class="stat"><div class="k">Ноцтой</div><div class="v c-high">{{ c.high }}</div></div>
+  <div class="stat"><div class="k">Дунд</div><div class="v c-medium">{{ c.medium }}</div></div>
+  <div class="stat"><div class="k">Бага</div><div class="v c-low">{{ c.low }}</div></div>
+</div>
+{% endwith %}
+
+{% if service.advice %}
+<section>
+  <h2>Багшийн зөвлөгөө <span class="ai-tag">AI</span></h2>
+  <div class="box"><div class="box-body">
+    <p style="margin:0 0 18px">{{ service.advice.summary }}</p>
+    {% for item in service.advice.items %}
+    <div class="step">
+      <span class="num">{{ forloop.counter }}</span>
+      <div>
+        <h3>{{ item.title }}</h3>
+        <p><b>Яагаад аюултай вэ:</b> {{ item.why }}</p>
+        <p><b>Яаж засах вэ:</b> {{ item.fix }}</p>
+      </div>
+    </div>
+    {% endfor %}
+    <div class="next"><b>Эхлээд хийх зүйл:</b> {{ service.advice.next_step }}</div>
+  </div></div>
+</section>
+{% endif %}
+
+<section>
+  <h2>Илэрсэн асуудлууд</h2>
+  {% if service.findings %}
+  <table class="table">
+    <thead><tr>
+      <th style="width:130px">Түвшин</th>
+      <th>Асуудал <span class="count">{{ service.findings|length }}</span></th>
+      <th style="width:36%">Байршил</th>
+    </tr></thead>
+    <tbody>
+    {% for f in service.findings %}
+      <tr>
+        <td><span class="sev c-{{ f.severity }}">{% if f.severity == "high" %}Ноцтой{% elif f.severity == "medium" %}Дунд{% else %}Бага{% endif %}</span></td>
+        <td>{{ f.title }}{% if f.detail and not f.file %}<div class="detail">{{ f.detail }}</div>{% endif %}</td>
+        <td>{% if f.file %}<div class="loc">{{ f.file }}{% if f.line %}:{{ f.line }}{% endif %}</div>{% if f.detail %}<div class="detail">{{ f.detail }}</div>{% endif %}{% else %}<span class="loc">—</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="box empty">🎉 Асуудал илэрсэнгүй. Сайн байна!</div>
+  {% endif %}
+</section>
+{% endblock %}

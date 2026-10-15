@@ -1,0 +1,68 @@
+{% extends "checker/service_base.html" %}
+{% block tab_style %}
+  .kv { width:100%; border-collapse:collapse; font-size:14px; }
+  .kv td { padding:12px 0; border-bottom:1px solid var(--line); vertical-align:middle; }
+  .kv td:first-child { width:200px; color:var(--muted); }
+  .kv tr:last-child td { border-bottom:0; }
+  .reveal { margin-left:8px; font-size:13px; }
+  pre.code { background:var(--log-bg); color:#e4e4ea; padding:16px 18px; border-radius:6px; overflow-x:auto; font-size:13px; margin:0; }
+  .feature { display:grid; grid-template-columns:auto 1fr; gap:16px; align-items:start; }
+  .feature .ic { width:44px; height:44px; border-radius:10px; background:var(--accent-soft); color:var(--accent); display:grid; place-items:center; }
+{% endblock %}
+{% block tab %}
+<section>
+  <h2>Өгөгдлийн сан</h2>
+  {% if db %}
+  <div class="box" style="margin-bottom:24px">
+    <div class="box-head"><h3>PostgreSQL 16 · <span class="mono">{{ db.name }}</span></h3><span class="chip live"><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Бэлэн</span></div>
+    <div class="box-body">
+      <table class="kv">
+        <tr><td>Host</td><td><button type="button" class="copy" data-copy="{{ db.HOST }}">{{ db.HOST }}</button></td></tr>
+        <tr><td>Port</td><td class="mono">5432</td></tr>
+        <tr><td>Database</td><td><button type="button" class="copy" data-copy="{{ db.name }}">{{ db.name }}</button></td></tr>
+        <tr><td>Хэрэглэгч</td><td><button type="button" class="copy" data-copy="{{ db.username }}">{{ db.username }}</button></td></tr>
+        <tr><td>Нууц үг</td><td><button type="button" class="copy" data-copy="{{ db.password }}" data-secret="{{ db.password }}">••••••••••••</button><button type="button" class="btn reveal" data-reveal style="padding:4px 10px">Харуулах</button></td></tr>
+        <tr><td>DATABASE_URL</td><td><button type="button" class="copy" data-copy="{{ db.url }}">postgresql://{{ db.username }}:••••@{{ db.HOST }}:5432/{{ db.name }}</button></td></tr>
+        <tr><td>Хэмжээ</td><td>{{ db.size_mb }} MB / {% if plan.key == "pro" %}10 GB{% else %}1 GB{% endif %}</td></tr>
+      </table>
+    </div>
+  </div>
+  <h2 style="font-size:17px">Кодонд холбох</h2>
+  <pre class="code">import os
+import dj_database_url  # pip install dj-database-url psycopg[binary]
+
+DATABASES = {"default": dj_database_url.parse(os.environ["DATABASE_URL"])}</pre>
+  <p class="help">DATABASE_URL дараагийн deploy-оос апп-д автоматаар орно. Нууц үгийг кодонд бүү бич.</p>
+  <div class="danger-zone" style="margin-top:32px">
+    <div><b>Өгөгдлийн сан устгах</b><p>Бүх өгөгдөл устгагдана, буцаах боломжгүй.</p></div>
+    <form method="post" onsubmit="return confirm('Өгөгдлийн санг устгах уу? Бүх өгөгдөл устна.')">{% csrf_token %}<input type="hidden" name="action" value="delete">
+      <button class="btn danger">Устгах</button></form>
+  </div>
+  {% else %}
+  <div class="box box-body feature">
+    <span class="ic"><svg class="i" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span>
+    <div>
+      <h3 style="margin:0 0 6px">PostgreSQL өгөгдлийн сан</h3>
+      <p class="muted" style="margin:0 0 16px">Хэрэглэгч, захиалга гэх мэт өгөгдлөө найдвартай хадгална. Өдөр бүр автомат backup хийгдэнэ. Холболтын мэдээлэл <code>DATABASE_URL</code> болж апп-д автоматаар орно.</p>
+      {% if plan.database %}
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="create"><button class="btn primary">Өгөгдлийн сан үүсгэх</button></form>
+      {% else %}
+      <a href="/billing/" class="btn primary">Сурагч багц руу шилжих</a>
+      <p class="help">Өгөгдлийн сан Сурагч болон Pro багцад багтдаг.</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
+{% block script %}
+<script>
+  document.querySelectorAll("[data-reveal]").forEach(b => b.addEventListener("click", () => {
+    const target = b.previousElementSibling;
+    const shown = b.dataset.shown === "1";
+    target.textContent = shown ? "••••••••••••" : target.dataset.secret;
+    b.textContent = shown ? "Харуулах" : "Нуух";
+    b.dataset.shown = shown ? "0" : "1";
+  }));
+</script>
+{% endblock %}

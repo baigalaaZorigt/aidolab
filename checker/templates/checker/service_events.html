@@ -1,0 +1,55 @@
+{% extends "checker/service_base.html" %}
+{% block tab_style %}
+  .timeline { border:1px solid var(--line-2); }
+  .event { display:grid; grid-template-columns:36px 1fr auto; gap:14px; align-items:center; padding:16px 20px; border-top:1px solid var(--line); }
+  .event:first-child { border-top:0; }
+  .event .dot { width:30px; height:30px; border-radius:50%; display:grid; place-items:center; }
+  .dot.ready, .dot.live { background:var(--ok-soft); color:var(--ok); } .dot.warn { background:var(--warn-soft); color:var(--warn); } .dot.risk { background:var(--risk-soft); color:var(--risk); }
+  .dot.building { background:var(--accent-soft); color:var(--accent); }
+  .event b { font-weight:500; }
+  .event .sub2 { color:var(--muted); font-size:13px; margin-top:2px; }
+  .event .right { display:flex; align-items:center; gap:12px; }
+  .delta { font-family:"JetBrains Mono", ui-monospace, monospace; font-size:13px; }
+  .delta.up { color:var(--ok); } .delta.down { color:var(--high); }
+{% endblock %}
+{% block tab %}
+<section>
+  <h2>Үйл явдал</h2>
+  {% if events %}
+  <div class="timeline">
+    {% for e in events %}
+    {% if e.kind == "deploy" %}
+    <div class="event">
+      <span class="dot {{ e.status }}"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg></span>
+      <div>
+        <b>Deploy #{{ e.number }} {% if e.status == "building" %}явагдаж байна{% else %}амжилттай{% endif %}</b>
+        {% if e.pk == current_deploy %}<span class="tag" style="margin-left:6px">Одоогийн</span>{% endif %}
+        <div class="sub2">{% if e.trigger == "rollback" %}Өмнөх хувилбар руу буцаасан{% else %}Гараар эхлүүлсэн{% endif %} · оноо {{ e.score }}/100 · <a class="link" href="/services/{{ service.pk }}/logs/">Log</a></div>
+      </div>
+      <div class="right">
+        {% if e.pk != current_deploy %}
+        <form method="post" action="/services/{{ service.pk }}/deploy/">{% csrf_token %}<input type="hidden" name="trigger" value="rollback">
+          <button class="btn" style="padding:5px 10px" {% if service.score < 80 %}disabled{% endif %}>Буцаах</button></form>
+        {% endif %}
+        <span class="muted" title="{{ e.started_at|date:'Y-m-d H:i' }}">{{ e.ago }}</span>
+      </div>
+    </div>
+    {% else %}
+    <div class="event">
+      <span class="dot {% if e.score >= 80 %}ready{% elif e.score >= 50 %}warn{% else %}risk{% endif %}">
+        <svg class="i" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z"/></svg></span>
+      <div>
+        <b>Шалгалт дууслаа — {{ e.score }}/100 оноо</b>
+        {% if e.delta is not None and e.delta != 0 %}<span class="delta {% if e.delta > 0 %}up{% else %}down{% endif %}">({% if e.delta > 0 %}+{% endif %}{{ e.delta }})</span>{% endif %}
+        <div class="sub2">Ноцтой {{ e.high }} · Дунд {{ e.medium }} · Бага {{ e.low }}</div>
+      </div>
+      <div class="right"><span class="muted" title="{{ e.created_at|date:'Y-m-d H:i' }}">{{ e.ago }}</span></div>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="box empty">Үйл явдал алга.</div>
+  {% endif %}
+</section>
+{% endblock %}

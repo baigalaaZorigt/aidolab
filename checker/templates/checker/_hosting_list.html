@@ -1,0 +1,9 @@
+{% extends "checker/base.html" %}
+{% block style %}
+  .svc-name a { text-decoration:underline; text-underline-offset:3px; text-decoration-color:var(--line-2); font-weight:500; }
+  @media (max-width: 900px) {
+    .table thead { display:none; }
+    .table tr { display:block; padding:12px 4px; border-bottom:1px solid var(--line); }
+    .table td { display:block; padding:3px 0; border:0; }
+  }
+{% endblock %}

@@ -1,0 +1,112 @@
+{% extends "checker/base.html" %}
+{% block title %}{{ service.name }} · aidolab{% endblock %}
+{% block crumbs %}<a href="/">Тойм</a><span>/</span><b class="mono">{{ service.name }}</b>{% endblock %}
+{% block style %}
+
+  .svc-head { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; flex-wrap:wrap; margin-bottom:36px; }
+  .svc-title { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .svc-title h1 { font-size:30px; word-break:break-all; }
+  .meta { display:flex; align-items:center; gap:18px; flex-wrap:wrap; color:var(--muted); font-size:14px; margin-top:12px; }
+  .meta a { display:inline-flex; align-items:center; gap:6px; text-decoration:underline; text-underline-offset:3px; text-decoration-color:var(--line-2); word-break:break-all; }
+  .actions { display:flex; gap:10px; flex-wrap:wrap; }
+  .stats { display:grid; grid-template-columns:1.5fr repeat(3, 1fr); border:1px solid var(--line-2); margin-bottom:44px; }
+  .stat { padding:20px 22px; border-left:1px solid var(--line); }
+  .stat:first-child { border-left:0; }
+  .stat .k { font-family:"JetBrains Mono", ui-monospace, monospace; font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
+  .stat .v { font-size:30px; font-weight:600; letter-spacing:-.02em; margin-top:6px; line-height:1.1; }
+  .stat .v small { font-size:15px; color:var(--faint); font-weight:400; }
+  .meter { height:6px; background:var(--line); border-radius:99px; overflow:hidden; margin-top:14px; }
+  .meter span { display:block; height:100%; border-radius:99px; }
+  .c-high { color:var(--high); } .c-medium { color:var(--medium); } .c-low { color:var(--low); }
+  .c-ready { color:var(--ok); } .c-warn { color:var(--warn); } .c-risk { color:var(--risk); }
+  .b-ready { background:var(--ok); } .b-warn { background:var(--warn); } .b-risk { background:var(--risk); }
+  .ai-tag { font-size:11px; font-weight:600; color:var(--accent); background:var(--accent-soft); padding:2px 8px; border-radius:99px; vertical-align:middle; margin-left:8px; }
+  .step { display:grid; grid-template-columns:30px 1fr; gap:14px; padding:18px 0; border-top:1px solid var(--line); }
+  .step:first-of-type { border-top:0; padding-top:4px; }
+  .num { width:26px; height:26px; border-radius:50%; background:var(--accent-soft); color:var(--accent); display:grid; place-items:center; font-size:13px; font-weight:600; }
+  .step h3 { margin:2px 0 8px; font-size:16px; font-weight:600; }
+  .step p { margin:6px 0; color:var(--muted); white-space:pre-wrap; }
+  .step p b { color:var(--text); font-weight:500; }
+  .next { margin-top:10px; padding:14px 16px; background:var(--accent-soft); border:1px solid var(--accent-line); border-radius:6px; }
+  .sev { display:inline-flex; align-items:center; gap:7px; font-size:14px; font-weight:500; white-space:nowrap; }
+  .sev::before { content:""; width:8px; height:8px; border-radius:2px; background:currentColor; }
+  .loc { font-family:"JetBrains Mono", ui-monospace, monospace; font-size:13px; color:var(--muted); word-break:break-all; }
+  .detail { font-family:"JetBrains Mono", ui-monospace, monospace; font-size:12.5px; color:var(--faint); margin-top:4px; word-break:break-all; }
+  .table td { vertical-align:top; }
+  .empty { padding:48px 24px; text-align:center; color:var(--muted); }
+  .danger-zone { border:1px solid color-mix(in srgb, var(--high) 35%, transparent); display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; padding:20px 24px; }
+  .danger-zone p { margin:4px 0 0; color:var(--muted); font-size:14px; }
+  @media (max-width: 900px) {
+    .stats { grid-template-columns:1fr 1fr 1fr; }
+    .stat:first-child { grid-column:1 / -1; border-bottom:1px solid var(--line); }
+    .stat:nth-child(2) { border-left:0; }
+    .table thead { display:none; }
+    .table tr { display:block; padding:12px 0; border-bottom:1px solid var(--line); }
+    .table td { display:block; padding:3px 4px; border:0; }
+  }
+  .tabs-nav { display:flex; gap:4px; border-bottom:1px solid var(--line-2); margin-bottom:32px; overflow-x:auto; }
+  .tabs-nav a { padding:10px 14px; color:var(--muted); font-weight:500; font-size:14px; border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap; }
+  .tabs-nav a:hover { color:var(--text); }
+  .tabs-nav a.on { color:var(--text); border-bottom-color:var(--accent); }
+  .url-line { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .deploy-note { font-size:13px; color:var(--muted); margin-top:8px; max-width:280px; text-align:right; }
+  @media (max-width: 900px) { .deploy-note { text-align:left; } }
+  {% block tab_style %}{% endblock %}
+{% endblock %}
+{% block content %}
+<div class="svc-head">
+  <div style="min-width:0">
+    <div class="svc-title">
+      <h1 class="mono">{{ service.name }}</h1>
+      {% with st=service.deploy_state %}
+      <span class="chip {{ st }}">
+        {% if st == "live" %}<svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>
+        {% elif st == "building" %}<span class="pulse"></span>
+        {% elif st == "suspended" %}<svg class="i" viewBox="0 0 24 24"><path d="M9 6v12M15 6v12"/></svg>
+        {% else %}<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>{% endif %}
+        {{ service.deploy_label }}</span>
+      {% endwith %}
+      <span class="chip {{ service.status }}" title="Аюулгүй байдлын оноо">{{ service.score }}/100</span>
+    </div>
+    <div class="meta">
+      <span class="url-line"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>
+        {% if service.deploy_state == "live" %}<a href="{{ service.url }}" target="_blank" rel="noopener" class="mono">{{ service.url }}</a>
+        {% else %}<span class="mono">{{ service.url }}</span>{% endif %}</span>
+      <a href="{{ service.repo_url }}" target="_blank" rel="noopener"><svg class="i" viewBox="0 0 24 24"><path d="M9 19c-4 1.5-4-2-6-2.5M15 21v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 00-1.3-3.2 4.2 4.2 0 00-.1-3.2s-1-.3-3.4 1.3a11.5 11.5 0 00-6.2 0C6.6 2.8 5.6 3.1 5.6 3.1a4.2 4.2 0 00-.1 3.2A4.6 4.6 0 004.2 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg>{{ service.name }}</a>
+      <span class="tag">Python</span>
+      <span>Сүүлд шалгасан: {{ service.updated_ago }}</span>
+    </div>
+  </div>
+  <div>
+    <div class="actions">
+      <form method="post" action="/services/{{ service.pk }}/rescan/" data-scan>
+        {% csrf_token %}
+        <button type="submit" class="btn" data-scan-btn><svg class="i" viewBox="0 0 24 24"><path d="M20 11a8 8 0 10-2.3 5.7M20 4v7h-7"/></svg> Дахин шалгах</button>
+      </form>
+      <form method="post" action="/services/{{ service.pk }}/deploy/">
+        {% csrf_token %}
+        <button type="submit" class="btn primary" {% if service.score < 80 or service.deploy_state == "building" %}disabled{% endif %}>
+          <svg class="i" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg>{% if service.latest_deploy %}Дахин deploy хийх{% else %}Deploy хийх{% endif %}</button>
+      </form>
+    </div>
+    <div class="deploy-note">{% if service.score < 80 %}Deploy хийхийн тулд оноогоо 80-аас дээш гаргана.{% elif service.deploy_state == "building" %}Deploy явагдаж байна…{% else %}✓ Оноо 80-аас дээш — deploy хийх боломжтой.{% endif %}</div>
+  </div>
+</div>
+
+<nav class="tabs-nav">
+  <a href="/services/{{ service.pk }}/" {% if tab == "overview" %}class="on"{% endif %}>Тойм</a>
+  <a href="/services/{{ service.pk }}/events/" {% if tab == "events" %}class="on"{% endif %}>Үйл явдал</a>
+  <a href="/services/{{ service.pk }}/logs/" {% if tab == "logs" %}class="on"{% endif %}>Log</a>
+  <a href="/services/{{ service.pk }}/metrics/" {% if tab == "metrics" %}class="on"{% endif %}>Metrics</a>
+  <a href="/services/{{ service.pk }}/env/" {% if tab == "env" %}class="on"{% endif %}>Орчны хувьсагч</a>
+  <a href="/services/{{ service.pk }}/database/" {% if tab == "database" %}class="on"{% endif %}>Өгөгдлийн сан</a>
+  <a href="/services/{{ service.pk }}/storage/" {% if tab == "storage" %}class="on"{% endif %}>Файл</a>
+  <a href="/services/{{ service.pk }}/domains/" {% if tab == "domains" %}class="on"{% endif %}>Домэйн</a>
+  <a href="/services/{{ service.pk }}/settings/" {% if tab == "settings" %}class="on"{% endif %}>Тохиргоо</a>
+</nav>
+
+{% include "checker/_scanlog.html" %}
+<div data-hide-on-scan>
+{% block tab %}{% endblock %}
+</div>
+{% endblock %}

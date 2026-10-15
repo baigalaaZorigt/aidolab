@@ -1,0 +1,67 @@
+{% extends "checker/base.html" %}
+{% block title %}Системийн лог · aidolab{% endblock %}
+{% block crumbs %}<b>Системийн лог</b>{% endblock %}
+{% block style %}
+  .filters { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-bottom:24px; }
+  .filters .field { margin:0; }
+  .filters select { border:1px solid var(--line-2); border-radius:6px; padding:11px 12px; font:inherit; background:var(--panel); color:var(--text); min-width:170px; }
+  .filters .grow { flex:1; min-width:220px; }
+  .kind { display:inline-block; font-size:12px; font-weight:600; padding:2px 8px; border-radius:4px; background:var(--hover); border:1px solid var(--line); white-space:nowrap; }
+  .kind.auth { color:#2563eb; } .kind.deploy { color:var(--ok); } .kind.scan { color:var(--accent); }
+  .kind.env, .kind.network { color:var(--warn); } .kind.billing { color:#0e7490; }
+  .ts { font-family:"JetBrains Mono", ui-monospace, monospace; font-size:13px; color:var(--muted); white-space:nowrap; }
+  @media (max-width: 900px) {
+    .table thead { display:none; }
+    .table tr { display:block; padding:12px 4px; border-bottom:1px solid var(--line); }
+    .table td { display:inline-block; padding:2px 8px 2px 0; border:0; }
+    .table td.msg { display:block; }
+  }
+{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Системийн лог</h1><p class="sub">Таны ажлын талбарт хэн, хэзээ, юу хийснийг бүртгэнэ: нэвтрэлт, deploy, тохиргооны өөрчлөлт. Нууц утга энд хэзээ ч харагдахгүй.</p></div>
+  <a class="btn" href="?{% if kind %}kind={{ kind }}&{% endif %}{% if service %}service={{ service|urlencode }}&{% endif %}{% if q %}q={{ q|urlencode }}&{% endif %}format=csv"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>CSV татах</a>
+</div>
+
+<form method="get" class="filters">
+  <div class="field">
+    <label for="kind">Төрөл</label>
+    <select id="kind" name="kind" onchange="this.form.submit()">
+      <option value="">Бүгд</option>
+      {% for k, label in kinds %}<option value="{{ k }}" {% if k == kind %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="service">Апп</label>
+    <select id="service" name="service" onchange="this.form.submit()">
+      <option value="">Бүгд</option>
+      {% for n in service_names %}<option value="{{ n }}" {% if n == service %}selected{% endif %}>{{ n }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field grow">
+    <label for="q">Хайх</label>
+    <div class="input"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input id="q" name="q" value="{{ q }}" placeholder="deploy, домэйн, DATABASE…"></div>
+  </div>
+  <button class="btn" type="submit">Шүүх</button>
+</form>
+
+{% if events %}
+<table class="table">
+  <thead><tr><th style="width:170px">Огноо</th><th style="width:150px">Төрөл</th><th>Үйлдэл</th><th style="width:200px">Апп</th><th style="width:130px">IP</th></tr></thead>
+  <tbody>
+  {% for e in events %}
+    <tr>
+      <td class="ts">{{ e.created_at|date:"Y-m-d H:i:s" }}</td>
+      <td><span class="kind {{ e.kind }}">{{ e.kind_label }}</span></td>
+      <td class="msg">{{ e.message }}</td>
+      <td class="mono" style="font-size:13px">{% if e.service %}<a href="/services/{{ e.service.pk }}/" class="link">{{ e.service_name }}</a>{% elif e.service_name %}<span class="muted">{{ e.service_name }} (устсан)</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td class="ts">{{ e.ip|default:"—" }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="help" style="margin-top:14px">Сүүлийн 200 бичлэг харагдаж байна. Бүгдийг нь CSV-ээр татна.</p>
+{% else %}
+<div class="box empty">Лог олдсонгүй.</div>
+{% endif %}
+{% endblock %}

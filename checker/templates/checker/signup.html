@@ -1,0 +1,32 @@
+{% extends "checker/auth_base.html" %}
+{% block title %}Бүртгүүлэх · aidolab{% endblock %}
+{% block content %}
+<h1>Бүртгүүлэх</h1>
+<p class="sub">Хэдхэн секундэд бүртгэл үүсгээд эхний repo-гоо шалгуулаарай.</p>
+{% if error %}<div class="alert"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><div>{{ error }}</div></div>{% endif %}
+<form method="post">
+  {% csrf_token %}
+  <div class="field">
+    <label for="name">Нэр</label>
+    <div class="input"><input id="name" name="name" required autocomplete="given-name" value="{{ name|default:'' }}" autofocus></div>
+  </div>
+  <div class="field">
+    <label for="email">Имэйл</label>
+    <div class="input"><input id="email" name="email" type="email" required autocomplete="email" value="{{ email|default:'' }}"></div>
+  </div>
+  <div class="field">
+    <label for="password">Нууц үг</label>
+    <div class="input"><input id="password" name="password" type="password" required minlength="8" autocomplete="new-password"></div>
+    <div class="help">Хамгийн багадаа 8 тэмдэгт, үсэг тоо холих.</div>
+  </div>
+  {% if needs_code %}
+  <div class="field">
+    <label for="code">Ангийн код</label>
+    <div class="input"><input id="code" name="code" required autocomplete="off"></div>
+    <div class="help">Кодыг багшаасаа авна уу.</div>
+  </div>
+  {% endif %}
+  <button type="submit" class="btn primary">Бүртгүүлэх</button>
+</form>
+<p class="switch">Бүртгэлтэй юу? <a href="/login/">Нэвтрэх</a></p>
+{% endblock %}

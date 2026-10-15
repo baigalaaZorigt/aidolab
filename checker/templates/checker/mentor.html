@@ -1,0 +1,71 @@
+{% extends "checker/base.html" %}
+{% block title %}Mentor · aidolab{% endblock %}
+{% block crumbs %}<b>Mentor</b>{% endblock %}
+{% block style %}
+  .wrap { max-width:820px; }
+  textarea { width:100%; min-height:130px; border:1px solid var(--line-2); border-radius:6px; padding:12px 14px; font:inherit; background:var(--panel); color:var(--text); resize:vertical; }
+  textarea:focus, select:focus { outline:0; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  select { width:100%; border:1px solid var(--line-2); border-radius:6px; padding:11px 12px; font:inherit; background:var(--panel); color:var(--text); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .thread { border:1px solid var(--line-2); margin-bottom:16px; background:var(--panel); }
+  .thread-head { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:14px 20px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  .msg { padding:16px 20px; display:grid; grid-template-columns:32px 1fr; gap:12px; }
+  .msg + .msg { border-top:1px solid var(--line); background:var(--side); }
+  .msg p { margin:2px 0 0; white-space:pre-wrap; }
+  .who-av { width:30px; height:30px; border-radius:50%; display:grid; place-items:center; font-size:12px; font-weight:600; background:var(--accent-soft); color:var(--accent); }
+  .who-av.mentor { background:var(--ok-soft); color:var(--ok); }
+  @media (max-width: 600px) { .grid2 { grid-template-columns:1fr; } }
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <div class="page-head"><div><h1>Mentor</h1><p class="sub">Гацсан зүйлээ асуугаарай. AI Academy Asia-гийн mentor хариулна. Алдааны мэдээлэл, юу хийх гэж оролдсоноо тодорхой бичвэл хурдан тусална.</p></div></div>
+
+  <section>
+    <form method="post" class="box">
+      {% csrf_token %}
+      <div class="box-head"><h3>Шинэ асуулт</h3></div>
+      <div class="box-body">
+        <div class="grid2">
+          <div class="field">
+            <label for="topic">Сэдэв</label>
+            <div class="input"><input id="topic" name="topic" required maxlength="200" placeholder="Deploy хийхэд алдаа гарч байна"></div>
+          </div>
+          <div class="field">
+            <label for="service">Апп (заавал биш)</label>
+            <select id="service" name="service">
+              <option value="">—</option>
+              {% for s in services %}<option value="{{ s.pk }}" {% if selected == s.pk|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="question">Асуулт</label>
+          <textarea id="question" name="question" required placeholder="Юу хийх гэж байсан, ямар алдаа гарсан, юу оролдож үзсэн бэ?"></textarea>
+          <div class="help">Нууц түлхүүр, нууц үгээ энд бүү бичээрэй.</div>
+        </div>
+        <button type="submit" class="btn primary">Илгээх</button>
+      </div>
+    </form>
+  </section>
+
+  <section>
+    <h2>Миний асуултууд</h2>
+    {% for r in requests %}
+    <div class="thread">
+      <div class="thread-head">
+        <b>{{ r.topic }}</b>
+        <span style="display:flex; gap:10px; align-items:center">
+          {% if r.service %}<a href="/services/{{ r.service.pk }}/" class="tag mono">{{ r.service.name }}</a>{% endif %}
+          {% if r.answer %}<span class="chip live"><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Хариулсан</span>
+          {% else %}<span class="chip warn"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Хүлээгдэж байна</span>{% endif %}
+        </span>
+      </div>
+      <div class="msg"><span class="who-av">{{ user.first_name|first|upper }}</span><div><span class="muted" style="font-size:13px">Та · {{ r.ago }}</span><p>{{ r.question }}</p></div></div>
+      {% if r.answer %}<div class="msg"><span class="who-av mentor">M</span><div><span class="muted" style="font-size:13px">Mentor · {{ r.answered_at|date:"Y-m-d H:i" }}</span><p>{{ r.answer }}</p></div></div>{% endif %}
+    </div>
+    {% empty %}
+    <div class="box empty">Асуулт илгээгээгүй байна.</div>
+    {% endfor %}
+  </section>
+</div>
+{% endblock %}

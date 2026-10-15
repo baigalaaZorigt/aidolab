@@ -1,0 +1,47 @@
+{% extends "checker/base.html" %}
+{% block title %}{{ inv.number }} · aidolab{% endblock %}
+{% block crumbs %}<a href="/billing/">Төлбөр</a><span>/</span><b class="mono">{{ inv.number }}</b>{% endblock %}
+{% block style %}
+  .pay { display:grid; grid-template-columns:300px 1fr; gap:32px; max-width:820px; align-items:start; }
+  .qr { border:1px solid var(--line-2); padding:20px; background:#fff; border-radius:8px; }
+  .qr svg { width:100%; height:auto; display:block; }
+  .qr-cap { text-align:center; font-size:13px; color:var(--muted); margin-top:10px; }
+  .kv { width:100%; border-collapse:collapse; font-size:15px; }
+  .kv td { padding:12px 0; border-bottom:1px solid var(--line); }
+  .kv td:first-child { color:var(--muted); width:150px; }
+  .total { font-size:28px; font-weight:600; }
+  .banks { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0 22px; }
+  @media (max-width: 760px) { .pay { grid-template-columns:1fr; } .qr { max-width:300px; } }
+{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Нэхэмжлэх <span class="mono">{{ inv.number }}</span></h1></div></div>
+<div class="pay">
+  <div>
+    <div class="qr">
+      <svg viewBox="-2 -2 29 29" shape-rendering="crispEdges" aria-label="QPay QR">
+        {% for x, y in cells %}<rect x="{{ x }}" y="{{ y }}" width="1" height="1" fill="#111"/>{% endfor %}
+      </svg>
+    </div>
+    <div class="qr-cap">Банкны апп-аараа QR уншуулна{% if DEMO_MODE %} (демо){% endif %}</div>
+  </div>
+  <div>
+    <table class="kv">
+      <tr><td>Багц</td><td><b>{{ plan.name }}</b> · 30 хоног</td></tr>
+      <tr><td>Огноо</td><td>{{ inv.created_at|date:"Y-m-d H:i" }}</td></tr>
+      <tr><td>Төлөв</td><td>{% if inv.paid_at %}<span class="chip live">Төлөгдсөн · {{ inv.paid_at|date:"Y-m-d H:i" }}</span>{% else %}<span class="chip warn">Төлбөр хүлээгдэж байна</span>{% endif %}</td></tr>
+      <tr><td>Дүн</td><td class="total">{{ inv.amount_label }}</td></tr>
+    </table>
+    {% if not inv.paid_at %}
+    <div class="banks">
+      <span class="tag">Хаан банк</span><span class="tag">Голомт</span><span class="tag">ХасБанк</span><span class="tag">ТДБ</span><span class="tag">Төрийн банк</span><span class="tag">SocialPay</span>
+    </div>
+    <form method="post">{% csrf_token %}
+      <button class="btn primary"><svg class="i" viewBox="0 0 24 24"><path d="M20 11a8 8 0 10-2.3 5.7M20 4v7h-7"/></svg>Төлбөр шалгах</button>
+    </form>
+    <p class="help">Төлбөр төлсний дараа "Төлбөр шалгах" дарна уу.</p>
+    {% else %}
+    <a href="/billing/" class="btn" style="margin-top:20px">Төлбөр рүү буцах</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

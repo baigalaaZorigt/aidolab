@@ -1,0 +1,109 @@
+{% extends "checker/service_base.html" %}
+{% block tab_style %}
+  .domain-row { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
+  .domain-name { display:flex; align-items:center; gap:10px; font-weight:500; flex-wrap:wrap; }
+  .dns { width:100%; border-collapse:collapse; margin-top:16px; font-size:14px; }
+  .dns th { text-align:left; font-family:"JetBrains Mono", ui-monospace, monospace; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:500; padding:8px 10px; border-bottom:1px solid var(--line); }
+  .dns td { padding:10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  .add-form { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; }
+  .add-form .field { flex:1; min-width:240px; margin:0; }
+  .steps { margin:14px 0 0; padding-left:20px; color:var(--muted); font-size:14px; }
+  .steps li { margin:4px 0; }
+  @media (max-width: 700px) {
+    .dns thead { display:none; }
+    .dns tr { display:block; padding:8px 0; border-bottom:1px solid var(--line); }
+    .dns td { display:block; padding:3px 0; border:0; }
+  }
+{% endblock %}
+{% block tab %}
+<section>
+  <h2>Домэйн</h2>
+
+  <div class="box" style="margin-bottom:24px">
+    <div class="box-body domain-row">
+      <div>
+        <div class="domain-name"><span class="mono">{{ service.slug }}.aidolab.mn</span><span class="tag">Анхдагч</span><span class="chip ready" style="font-size:13px"><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>SSL автомат</span></div>
+        <div class="help">Deploy хийгдмэгц энэ хаягаар нээгдэнэ. Нэрийг <a href="/services/{{ service.pk }}/settings/" class="link">Тохиргоо</a> хэсгээс солино.</div>
+      </div>
+    </div>
+  </div>
+
+  {% for d in domains %}
+  <div class="box" style="margin-bottom:24px">
+    <div class="box-head">
+      <div class="domain-name">
+        <span class="mono">{{ d.domain }}</span>
+        {% if d.status == "verified" %}<span class="chip ready" style="font-size:13px"><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Баталгаажсан</span><span class="chip ready" style="font-size:13px"><svg class="i" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>SSL идэвхтэй</span>
+        {% elif d.status == "failed" %}<span class="chip risk" style="font-size:13px"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>Баталгаажаагүй</span>
+        {% else %}<span class="chip warn" style="font-size:13px"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>DNS хүлээж байна</span>{% endif %}
+      </div>
+      <div class="actions">
+        {% if d.status != "verified" %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="verify"><input type="hidden" name="domain_id" value="{{ d.pk }}">
+          <button type="submit" class="btn"><svg class="i" viewBox="0 0 24 24"><path d="M20 11a8 8 0 10-2.3 5.7M20 4v7h-7"/></svg>Шалгах</button></form>
+        {% endif %}
+        <form method="post" onsubmit="return confirm('{{ d.domain|escapejs }}-г устгах уу?')">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="domain_id" value="{{ d.pk }}">
+          <button type="submit" class="btn danger">Устгах</button></form>
+      </div>
+    </div>
+    <div class="box-body">
+      {% if d.status == "verified" %}
+        <p style="margin:0">Домэйн баталгаажлаа. SSL сертификат автоматаар үүсч, <span class="mono">https://{{ d.domain }}</span> хаягаар нээгдэнэ.</p>
+      {% else %}
+        <p style="margin:0">Домэйнээ бүртгүүлсэн газар (DNS удирдлага) руугаа орж дараах бичлэгүүдийг нэмнэ үү. Утга дээр дарвал хуулагдана.</p>
+      {% endif %}
+      <table class="dns">
+        <thead><tr><th style="width:90px">Төрөл</th><th>Нэр (Host)</th><th>Утга</th><th style="width:150px">Зорилго</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="mono">TXT</td>
+            <td><button type="button" class="copy" data-copy="{{ d.txt_name }}">{{ d.txt_name }}</button></td>
+            <td><button type="button" class="copy" data-copy="{{ d.token }}">{{ d.token }}</button></td>
+            <td class="muted">Эзэмшлийг батлах</td>
+          </tr>
+          {% if d.is_apex %}
+          <tr>
+            <td class="mono">A</td>
+            <td><button type="button" class="copy" data-copy="{{ d.domain }}">{{ d.domain }}</button></td>
+            <td><button type="button" class="copy" data-copy="{{ gateway_ip }}">{{ gateway_ip }}</button></td>
+            <td class="muted">Чиглүүлэх</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td class="mono">CNAME</td>
+            <td><button type="button" class="copy" data-copy="{{ d.domain }}">{{ d.domain }}</button></td>
+            <td><button type="button" class="copy" data-copy="{{ service.slug }}.aidolab.mn">{{ service.slug }}.aidolab.mn</button></td>
+            <td class="muted">Чиглүүлэх</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+      <ul class="steps">
+        <li>DNS шинэчлэгдэхэд хэдэн минутаас 48 цаг хүртэл болно.</li>
+        <li>Cloudflare ашигладаг бол бичлэгийг "DNS only" (саарал үүл) болгоно.</li>
+        {% if d.last_checked_at %}<li>Сүүлд шалгасан: {{ d.last_checked_at|date:"Y-m-d H:i" }}</li>{% endif %}
+      </ul>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% if limit == 0 %}
+  <div class="box box-body">
+    <b>Өөрийн домэйн холбох</b>
+    <p class="muted" style="margin:6px 0 14px">Үнэгүй багцад зөвхөн <span class="mono">{{ service.slug }}.aidolab.mn</span> хаяг ашиглана. Өөрийн домэйн холбох бол багцаа ахиулна уу.</p>
+    <a href="/billing/" class="btn primary">Багц сонгох</a>
+  </div>
+  {% elif domains|length < limit %}
+  <form method="post" class="box box-body add-form">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add">
+    <div class="field">
+      <label for="domain">Өөрийн домэйн холбох</label>
+      <div class="input"><input id="domain" name="domain" required placeholder="www.minii-delguur.mn" autocomplete="off" class="mono"></div>
+      <div class="help">Таны багцад нэг апп {{ limit }} домэйн холбоно. SSL-ийг бид автоматаар тохируулна.</div>
+    </div>
+    <button type="submit" class="btn primary">Нэмэх</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}
