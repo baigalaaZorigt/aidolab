@@ -16,5 +16,5 @@ as_app "$HOME_DIR/venv/bin/python" manage.py migrate --noinput
 as_app "$HOME_DIR/venv/bin/python" manage.py collectstatic --noinput -v0
 as_app "$HOME_DIR/venv/bin/python" manage.py check --deploy --fail-level ERROR
 systemctl restart aidolab
-systemctl reload caddy || systemctl restart caddy
+nginx -t && systemctl reload nginx
 echo "Шинэчлэгдлээ: https://app.aidolab.mn"

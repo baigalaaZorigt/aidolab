@@ -41,7 +41,7 @@ AI ашиглан (vibe coding) апп хийж сурч буй хүмүүс о�
   - Оноо: 100-аас хасна (high −15, medium −7, low −3; нэг төрлийн асуудал 2-оос олон удаа хасагдахгүй)
 - `checker/ai.py` — Claude (`claude-opus-5-5`, structured output, `fallbacks: "default"`) илэрцийг монголоор тайлбарлана. `ANTHROPIC_API_KEY` байхгүй эсвэл алдаа гарвал `None` буцааж, зөвлөгөөгүйгээр үр дүнг харуулна.
 - `checker/views.py` — dashboard, new, үйлчилгээний табууд, rescan, delete. Бүх view `login_required`, зөвхөн өөрийн үйлчилгээг харна.
-- `deploy/` — AWS gateway EC2 (Ubuntu 24.04 arm64) дээр байршуулах: `bootstrap.sh` (анхны суулгалт), `update.sh` (шинэ код), systemd gunicorn (`--timeout 180`), Caddy (HTTPS, `/static/`), SQLite backup timer. Заавар: `deploy/README.md`.
+- `deploy/` — AWS gateway EC2 (Ubuntu 24.04 arm64) дээр байршуулах: `bootstrap.sh` (анхны суулгалт), `update.sh` (шинэ код), systemd gunicorn (`--timeout 180`), nginx + certbot (HTTPS, `/static/`; ELB байхгүй), SQLite backup timer. Заавар: `deploy/README.md`.
 
 ## Аюулгүй байдлын зарчим (заавал баримтлах)
 

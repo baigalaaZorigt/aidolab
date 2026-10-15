@@ -72,7 +72,7 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
-# collectstatic target; Caddy serves it directly in production (deploy/Caddyfile).
+# collectstatic target; nginx serves it directly in production (deploy/nginx-aidolab.conf).
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 if not DEBUG:
