@@ -11,6 +11,7 @@ Per app (service pk N, slug S):
 Student code never runs on the gateway; this module only calls AWS APIs.
 """
 import json
+import re
 import time
 from functools import cache
 
@@ -261,23 +262,28 @@ def teardown(payload: dict) -> None:
         drop_database(*payload["database"])
 
 
-def delete_images(pk: int) -> None:
-    """Image tags are s<pk>-<deploy number> (start_build)."""
+def delete_images(pk: int, keep: int = 0) -> None:
+    """Image tags are s<pk>-<deploy number> (start_build). Keeps the `keep` newest."""
     ecr, repo = client("ecr"), cfg("ECR_REPO").split("/", 1)[1]
     ids = []
     for page in ecr.get_paginator("list_images").paginate(repositoryName=repo, filter={"tagStatus": "TAGGED"}):
-        ids += [i for i in page["imageIds"] if i.get("imageTag", "").startswith(f"s{pk}-")]
+        ids += [i for i in page["imageIds"] if re.fullmatch(rf"s{pk}-\d+", i.get("imageTag", ""))]
+    ids.sort(key=lambda i: int(i["imageTag"].split("-")[1]))
+    ids = ids[:len(ids) - keep] if keep else ids
     for i in range(0, len(ids), 100):
         ecr.batch_delete_image(repositoryName=repo, imageIds=ids[i:i + 100])
 
 
-def delete_task_definitions(family: str) -> None:
+def delete_task_definitions(family: str, keep: int = 0) -> None:
+    """Deregisters and deletes the family's revisions, except the `keep` newest active ones."""
     ecs = client("ecs")
     arns = []
     for status in ("ACTIVE", "INACTIVE"):
         for page in ecs.get_paginator("list_task_definitions").paginate(familyPrefix=family, status=status):
             # familyPrefix also matches app-12 for app-1, so compare the exact family.
             arns += [a for a in page["taskDefinitionArns"] if a.rsplit("/", 1)[1].rsplit(":", 1)[0] == family]
+    arns.sort(key=lambda a: int(a.rsplit(":", 1)[1]))
+    arns = arns[:len(arns) - keep] if keep else arns
     for arn in arns:
         try:
             ecs.deregister_task_definition(taskDefinition=arn)
@@ -285,6 +291,12 @@ def delete_task_definitions(family: str) -> None:
             pass  # already inactive
     for i in range(0, len(arns), 10):
         ecs.delete_task_definitions(taskDefinitions=arns[i:i + 10])
+
+
+def prune_old_versions(service, keep: int = 2) -> None:
+    """After a successful deploy: the live version and the one before stay, older ones go."""
+    delete_images(service.pk, keep=keep)
+    delete_task_definitions(name_for(service), keep=keep)
 
 
 def delete_log_streams(name: str) -> None:

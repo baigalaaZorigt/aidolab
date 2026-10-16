@@ -186,3 +186,19 @@ class TeardownTests(TestCase):
             aws.delete_images(1)
         ecr.batch_delete_image.assert_called_once_with(
             repositoryName="aidolab-apps", imageIds=[{"imageTag": "s1-1"}, {"imageTag": "s1-2"}])
+
+    @mock.patch("checker.aws.client")
+    def test_redeploy_keeps_two_newest_versions(self, client):
+        from . import aws
+        api = client.return_value
+        api.get_paginator.return_value.paginate.side_effect = lambda **kw: (
+            [{"imageIds": [{"imageTag": f"s1-{n}"} for n in (1, 10, 2, 9)]}] if "repositoryName" in kw else
+            [{"taskDefinitionArns": [f"arn:aws:ecs:r:1:task-definition/app-1:{n}" for n in (3, 1, 2)]}]
+            if kw["status"] == "ACTIVE" else [{"taskDefinitionArns": []}])
+        service = mock.Mock(pk=1)
+        with override_settings(AIDOLAB={"ECR_REPO": "1.dkr.ecr.r.amazonaws.com/aidolab-apps"}):
+            aws.prune_old_versions(service)
+        api.batch_delete_image.assert_called_once_with(
+            repositoryName="aidolab-apps", imageIds=[{"imageTag": "s1-1"}, {"imageTag": "s1-2"}])
+        api.delete_task_definitions.assert_called_once_with(
+            taskDefinitions=["arn:aws:ecs:r:1:task-definition/app-1:1"])

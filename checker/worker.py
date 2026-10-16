@@ -120,6 +120,10 @@ def process(d: Deploy) -> None:
     d.duration = d.elapsed
     d.save(update_fields=["state", "duration"])
     d.log(f"==> Таны апп ажиллаж байна 🎉 {d.service.url}")
+    try:
+        aws.prune_old_versions(d.service)
+    except Exception:  # cleanup must never fail a live deploy; the next deploy tries again
+        log.exception("prune after deploy %s failed", d.pk)
 
 
 def fail(d: Deploy, message: str) -> None:
