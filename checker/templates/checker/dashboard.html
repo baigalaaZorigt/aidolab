@@ -1,15 +1,37 @@
 {% extends "checker/base.html" %}
 {% block style %}
-  .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:28px; max-width:1000px; }
-  .card { border:1px solid var(--line-2); padding:22px; min-height:146px; display:flex; flex-direction:column; justify-content:space-between; gap:18px; background:var(--panel); }
-  .card h3 { margin:0; font-size:17px; font-weight:600; }
-  .card.new { border-style:dashed; align-items:center; justify-content:center; font-size:17px; flex-direction:row; gap:10px; }
-  .card.new:hover { background:var(--hover); }
-  .tabs { display:inline-flex; border:1px solid var(--line-2); margin-bottom:28px; }
+  .hero { background:var(--ink); color:#fff; border-radius:10px; padding:32px 36px; display:flex; justify-content:space-between; align-items:center; gap:24px; flex-wrap:wrap; margin-bottom:28px; position:relative; overflow:hidden; }
+  .hero::after { content:""; position:absolute; right:-80px; top:-80px; width:260px; height:260px; border-radius:50%; background:radial-gradient(circle, rgba(37,99,235,.45), transparent 70%); pointer-events:none; }
+  .hero .kicker { color:#60a5fa; }
+  .hero h1 { color:#fff; font-size:32px; }
+  .hero p { color:#cbd5e1; margin:10px 0 0; max-width:620px; }
+  .hero .btn.primary { padding:14px 24px; font-size:15px; position:relative; z-index:1; }
+  .stats { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:16px; margin-bottom:44px; }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:18px 20px; box-shadow:var(--shadow); }
+  .stat .lbl { font-family:"JetBrains Mono", ui-monospace, monospace; font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); }
+  .stat .num { font-size:30px; font-weight:700; letter-spacing:-.02em; margin-top:6px; line-height:1.1; }
+  .stat .num small { font-size:15px; font-weight:500; color:var(--faint); }
+  .stat .hint { font-size:13px; color:var(--muted); margin-top:4px; }
+  .bar { height:6px; border-radius:99px; background:var(--hover); margin-top:12px; overflow:hidden; }
+  .bar i { display:block; height:100%; border-radius:99px; background:var(--accent); }
+  .bar i.ready { background:var(--ok); } .bar i.warn { background:var(--warn); } .bar i.risk { background:var(--risk); }
+  .steps { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px; }
+  .step { border:1px solid var(--line); background:var(--panel); border-radius:8px; padding:20px 22px; position:relative; box-shadow:var(--shadow); }
+  .step .no { font-family:"JetBrains Mono", ui-monospace, monospace; font-size:12px; font-weight:600; color:var(--faint); }
+  .step h3 { margin:8px 0 4px; font-size:16px; font-weight:700; }
+  .step p { margin:0; font-size:14px; color:var(--muted); }
+  .step.done .no { color:var(--ok); }
+  .step.now { border:2px solid var(--accent); padding:19px 21px; }
+  .step.now .no { color:var(--accent); }
+  .step .badge { position:absolute; top:-10px; right:16px; background:var(--accent); color:#fff; font-family:"JetBrains Mono", ui-monospace, monospace; font-size:10px; font-weight:700; padding:3px 9px; border-radius:4px; text-transform:uppercase; }
+  .list { padding:20px 22px 6px; }
+  .mini-score { display:flex; align-items:center; gap:10px; }
+  .mini-score .bar { width:60px; margin:0; }
+  .tabs { display:inline-flex; border:1px solid var(--line-2); border-radius:6px; overflow:hidden; margin-bottom:20px; }
   .tabs button { background:var(--panel); border:0; border-left:1px solid var(--line-2); padding:8px 12px; font:inherit; font-size:15px; color:var(--muted); cursor:pointer; }
   .tabs button:first-child { border-left:0; }
   .tabs button.on { background:var(--accent-soft); color:var(--accent); }
-  .search { margin-bottom:28px; }
+  .search { margin-bottom:12px; }
   .svc-name { display:inline-flex; align-items:center; gap:12px; font-weight:500; }
   .svc-name a { text-decoration:underline; text-underline-offset:3px; text-decoration-color:var(--line-2); }
   .svc-name a:hover { text-decoration-color:currentColor; }
@@ -22,9 +44,14 @@
   .menu-list a, .menu-list button { display:block; width:100%; text-align:left; padding:8px 10px; border-radius:4px; font:inherit; font-size:14px; background:none; border:0; color:var(--text); cursor:pointer; }
   .menu-list a:hover, .menu-list button:hover { background:var(--hover); }
   .menu-list button { color:var(--high); }
-  .empty { border:1px dashed var(--line-2); padding:48px 24px; text-align:center; color:var(--muted); }
+  .empty { border:1px dashed var(--line-2); border-radius:8px; padding:48px 24px; text-align:center; color:var(--muted); }
   .empty p { margin:0 0 16px; }
   @media (max-width: 900px) {
+    .stats { grid-template-columns:repeat(2, minmax(0,1fr)); }
+    .steps { grid-template-columns:1fr; }
+    .hero { padding:24px; }
+    .hero h1 { font-size:26px; }
+    .list { padding:16px 14px 4px; }
     .table thead { display:none; }
     .table tr { display:grid; grid-template-columns:1fr auto; gap:6px 12px; padding:14px 4px; border-bottom:1px solid var(--line); }
     .table td { padding:0; border:0; }
@@ -34,37 +61,68 @@
   }
 {% endblock %}
 {% block content %}
-<div class="page-head">
-  <div><h1>Тойм</h1><p class="sub">Сайн уу, {{ user.first_name }}! Repo-гоо шалгуулж, оноогоо 80-аас дээш гаргаарай.</p></div>
+<div class="hero">
+  <div>
+    <span class="kicker">Миний ажлын талбар</span>
+    <h1>Сайн уу{% if user.first_name %}, {{ user.first_name }}{% endif %}!</h1>
+    <p>{% if step == 1 %}Эхний repo-гоо шалгуулж эхэлцгээе. Шалгалт үнэгүй, хэдхэн минут болно.{% elif step == 2 %}Оноогоо 80-аас дээш гаргавал deploy хийх боломжтой болно. Засах зүйлсээ харцгаая.{% elif step == 3 %}Таны {{ ready_count }} апп deploy хийхэд бэлэн байна. Интернетэд гаргацгаая!{% else %}Таны {{ live_count }} апп интернетэд ажиллаж байна. Сайн ажиллалаа!{% endif %}</p>
+  </div>
   <a href="/new/" class="btn primary"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Шинэ repo шалгах</a>
 </div>
 
+<div class="stats">
+  <div class="stat">
+    <div class="lbl">Үйлчилгээ</div>
+    <div class="num">{{ services|length }}</div>
+    <div class="hint">{% if todo_count %}{{ todo_count }} нь засвар хэрэгтэй{% elif services %}Бүгд бэлэн{% else %}Одоогоор алга{% endif %}</div>
+  </div>
+  <div class="stat">
+    <div class="lbl">Deploy-д бэлэн</div>
+    <div class="num">{{ ready_count }}<small> / {{ services|length }}</small></div>
+    <div class="hint">Оноо 80 ба түүнээс дээш</div>
+  </div>
+  <div class="stat">
+    <div class="lbl">Ажиллаж байгаа апп</div>
+    <div class="num">{{ live_count }}<small> / {{ plan.apps }}</small></div>
+    <div class="bar"><i style="width:{% widthratio live_count plan.apps 100 %}%"></i></div>
+    <div class="hint">{{ plan.name }} багц</div>
+  </div>
+  <div class="stat">
+    <div class="lbl">Дундаж оноо</div>
+    <div class="num">{% if avg_score is not None %}{{ avg_score }}<small> / 100</small>{% else %}—{% endif %}</div>
+    {% if avg_score is not None %}<div class="bar"><i class="{% if avg_score >= 80 %}ready{% elif avg_score >= 50 %}warn{% else %}risk{% endif %}" style="width:{{ avg_score }}%"></i></div>{% endif %}
+  </div>
+</div>
+
 <section>
-  <h2>Ажлын талбар</h2>
-  <div class="cards">
-    <div class="card">
-      <h3>Миний үйлчилгээнүүд</h3>
-      <div>
-        {% if not services %}
-          <span class="muted">Одоогоор үйлчилгээ алга</span>
-        {% elif ready_count == services|length %}
-          <span class="chip ready"><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Бүх үйлчилгээ deploy хийхэд бэлэн</span>
-        {% else %}
-          <span class="chip warn"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>{{ todo_count }} үйлчилгээнд засвар хэрэгтэй</span>
-        {% endif %}
-      </div>
+  <span class="kicker">Дараагийн алхам</span>
+  <h2>Deploy хүртэлх 3 алхам</h2>
+  <div class="steps">
+    <a href="/new/" class="step {% if step > 1 %}done{% elif step == 1 %}now{% endif %}">
+      {% if step == 1 %}<span class="badge">Одоо</span>{% endif %}
+      <div class="no">{% if step > 1 %}✓ {% endif %}АЛХАМ 01</div>
+      <h3>Repo-гоо шалгуулах</h3>
+      <p>GitHub линкээ оруулахад нууц түлхүүр, тохиргоо, эмзэг сангуудыг шалгана.</p>
+    </a>
+    <div class="step {% if step > 2 %}done{% elif step == 2 %}now{% endif %}">
+      {% if step == 2 %}<span class="badge">Одоо</span>{% endif %}
+      <div class="no">{% if step > 2 %}✓ {% endif %}АЛХАМ 02</div>
+      <h3>Оноогоо 80+ болгох</h3>
+      <p>Зөвлөгөөний дагуу засаад дахин шалгуулна. 80-аас дээш бол бэлэн.</p>
     </div>
-    <div class="card">
-      <h3>Ажиллаж байгаа апп</h3>
-      <div><span style="font-size:28px; font-weight:600">{{ live_count }}</span> <span class="muted">/ {{ plan.apps }} ({{ plan.name }} багц)</span></div>
+    <div class="step {% if step > 3 %}done{% elif step == 3 %}now{% endif %}">
+      {% if step == 3 %}<span class="badge">Одоо</span>{% endif %}
+      <div class="no">{% if step > 3 %}✓ {% endif %}АЛХАМ 03</div>
+      <h3>Deploy хийх</h3>
+      <p>Нэг товчоор апп тань <span class="mono">нэр.aidolab.mn</span> хаягаар интернетэд гарна.</p>
     </div>
-    <a href="/new/" class="card new"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Шинэ repo шалгах</a>
   </div>
 </section>
 
 <section>
   <h2>Үйлчилгээнүүд</h2>
   {% if services %}
+  <div class="box list">
   <div class="tabs" role="tablist">
     <button type="button" class="on" data-tab="all">Бүгд ({{ services|length }})</button>
     <button type="button" data-tab="ready">Бэлэн ({{ ready_count }})</button>
@@ -86,7 +144,7 @@
           <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>
           <span><a href="/services/{{ s.pk }}/" class="mono">{{ s.name }}</a><span class="sub-url mono">{{ s.slug }}.aidolab.mn</span></span></span></td>
         <td><span class="chip {{ s.deploy_state }}">{% if s.deploy_state == "live" %}<svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>{% elif s.deploy_state == "building" %}<span class="pulse"></span>{% endif %}{{ s.deploy_label }}</span></td>
-        <td class="c-score"><span class="chip {{ s.status }}">{{ s.score }}/100</span></td>
+        <td class="c-score"><span class="mini-score"><span class="chip {{ s.status }}">{{ s.score }}/100</span><span class="bar"><i class="{{ s.status }}" style="width:{{ s.score }}%"></i></span></span></td>
         <td class="c-runtime"><span class="tag">Python</span></td>
         <td class="muted">{{ s.updated_ago }}</td>
         <td class="c-menu">
@@ -105,6 +163,7 @@
     {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}
   <div class="empty">
     <p>Та одоогоор repo шалгуулаагүй байна. Эхний repo-гоо шалгуулж, оноогоо 80-аас дээш гаргаад deploy хийгээрэй.</p>

@@ -12,6 +12,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from .audit import audit
+from .models import SocialAccount
 
 MIN_PASSWORD = 8
 
@@ -25,8 +26,8 @@ def password_error(password: str, email: str) -> str | None:
 
 
 def safe_next(request) -> str:
-    target = request.POST.get("next") or request.GET.get("next") or "/"
-    return target if url_has_allowed_host_and_scheme(target, {request.get_host()}) else "/"
+    target = request.POST.get("next") or request.GET.get("next") or "/dashboard/"
+    return target if url_has_allowed_host_and_scheme(target, {request.get_host()}) else "/dashboard/"
 
 
 def login_view(request):
@@ -57,7 +58,7 @@ def signup_view(request):
         context.update(name=name, email=email)
         error = None
         if needs_code and request.POST.get("code", "").strip() != os.environ["ACCESS_CODE"]:
-            error = "Ангийн код буруу байна. Багшаасаа асууна уу."
+            error = "Урилгын код буруу байна. AIDO Lab-тай холбогдоно уу."
         elif not name:
             error = "Нэрээ оруулна уу."
         else:
@@ -101,7 +102,8 @@ def account_view(request):
                 messages.error(request, "Нэрээ оруулна уу.")
         else:
             new = request.POST.get("new_password", "")
-            if not user.check_password(request.POST.get("old_password", "")):
+            # Users who signed up with GitHub/Google have no password yet; let them set one.
+            if user.has_usable_password() and not user.check_password(request.POST.get("old_password", "")):
                 messages.error(request, "Одоогийн нууц үг буруу байна.")
             elif error := password_error(new, user.email):
                 messages.error(request, error)
@@ -112,4 +114,8 @@ def account_view(request):
                 audit(request, "auth", "Нууц үг солив")
                 messages.success(request, "Нууц үг солигдлоо.")
         return redirect("account")
-    return render(request, "checker/account.html", {"tab": "account"})
+    from .oauth import enabled  # oauth imports this module, so import lazily
+    linked = {a.provider: a for a in user.social_accounts.all()}
+    providers = [{"key": k, "label": label, "account": linked.get(k), "enabled": enabled(k)}
+                 for k, label in SocialAccount.PROVIDERS.items()]
+    return render(request, "checker/account.html", {"tab": "account", "providers": providers})

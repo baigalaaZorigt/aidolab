@@ -1,9 +1,10 @@
-<!doctype html>
+{% load static %}<!doctype html>
 <html lang="mn">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}aidolab{% endblock %}</title>
+<title>{% block title %}AIDO Lab Mongolia{% endblock %}</title>
+<link rel="icon" type="image/svg+xml" href="{% static 'checker/logo-mark.svg' %}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -11,9 +12,13 @@
 <style>
   body { background:var(--side); }
   .auth { min-height:100vh; display:grid; grid-template-columns:1fr 1fr; }
-  .auth-side { background:var(--text); color:var(--bg); padding:56px; display:flex; flex-direction:column; justify-content:space-between; }
+  .auth-side { background:#13213c; color:#f8fafc; padding:56px; display:flex; flex-direction:column; justify-content:space-between; }
   .auth-side .brand { display:flex; align-items:center; gap:10px; font-weight:600; font-size:18px; }
-  .auth-side .brand span { width:28px; height:28px; border-radius:7px; background:var(--bg); color:var(--text); display:grid; place-items:center; font-weight:700; }
+  .auth-side .brand .logo-mark { width:32px; height:auto; }
+  .auth-side .brand b { font-weight:800; color:#fff; }
+  .auth-side .brand i { font-style:normal; font-weight:500; }
+  .home-link { display:inline-block; font-family:"JetBrains Mono", ui-monospace, monospace; font-size:12px; color:var(--muted); margin-bottom:32px; }
+  .home-link:hover { color:var(--text); }
   .auth-side h2 { font-size:34px; font-weight:500; letter-spacing:-.02em; line-height:1.25; margin:0 0 20px; max-width:460px; }
   .auth-side ul { list-style:none; padding:0; margin:0; display:grid; gap:12px; opacity:.85; }
   .auth-side li { display:flex; gap:10px; }
@@ -23,6 +28,11 @@
   .auth-card h1 { font-size:28px; margin-bottom:6px; }
   .auth-card .sub { margin:0 0 28px; }
   .auth-card .btn { width:100%; justify-content:center; padding:12px; }
+  .oauth { display:grid; gap:10px; }
+  .auth-card .oauth-btn { justify-content:center; gap:10px; padding:11px; font-weight:600; }
+  .or { display:flex; align-items:center; gap:12px; margin:22px 0; color:var(--faint); font-size:13px; }
+  .or::before, .or::after { content:""; flex:1; border-top:1px solid var(--line); }
+  .flash { margin-bottom:18px; }
   .switch { margin-top:22px; text-align:center; color:var(--muted); font-size:14px; }
   .switch a { color:var(--accent); font-weight:500; }
   @media (max-width: 860px) { .auth { grid-template-columns:1fr; } .auth-side { display:none; } }
@@ -31,7 +41,7 @@
 <body>
 <div class="auth">
   <aside class="auth-side">
-    <div class="brand"><span>a</span>aidolab</div>
+    <a href="{% url 'home' %}" class="brand">{% include "checker/_logo_mark.html" %}<span><b>AIDO</b> <i>Lab</i></span></a>
     <div>
       <h2>Аппаа аюулгүй шалгаад, нэг товчоор интернэтэд гарга.</h2>
       <ul>
@@ -40,10 +50,12 @@
         <li><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg><code>нэр.aidolab.mn</code> хаягтай hosting, өгөгдлийн сан, өөрийн домэйн, автомат SSL</li>
       </ul>
     </div>
-    <div class="foot">AI Academy Asia</div>
+    <div class="foot">AIDO Lab Mongolia</div>
   </aside>
   <main class="auth-main">
-    <div class="auth-card">{% block content %}{% endblock %}</div>
+    <div class="auth-card"><a href="{% url 'home' %}" class="home-link">← Нүүр хуудас</a>
+      {% for m in messages %}<div class="flash {{ m.tags }}">{{ m }}</div>{% endfor %}
+      {% block content %}{% endblock %}</div>
   </main>
 </div>
 </body>

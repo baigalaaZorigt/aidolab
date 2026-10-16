@@ -1,0 +1,77 @@
+{% extends "checker/landing/base.html" %}
+{% block title %}{{ service.name }} — AIDO Lab Mongolia{% endblock %}
+{% block style %}
+  .case-hero { background:var(--bg-alt); border-bottom:1px solid var(--line); padding:56px 0 64px; }
+  .back { display:inline-block; font-family:var(--mono); font-size:12px; color:var(--muted); margin-bottom:28px; }
+  .back:hover { color:var(--text); }
+  .case-hero h1 { font-size:clamp(34px, 5vw, 56px); line-height:1.05; font-weight:600; margin:12px 0 18px; max-width:820px; }
+  .case-hero p { color:var(--text-2); font-size:18px; max-width:680px; margin:0; }
+  .case-hero .visual { margin-top:44px; min-height:280px; }
+  .facts { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+  .facts div { padding:22px 0; }
+  .facts b { display:block; font-family:var(--display); font-size:22px; font-weight:600; margin-top:4px; }
+  .facts small { color:var(--muted); font-size:13px; }
+  .body { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:48px; padding:56px 0; }
+  .body h2 { font-size:24px; font-weight:600; margin:8px 0 18px; }
+  .body ul, .body ol { list-style:none; margin:0; padding:0; }
+  .body li { display:grid; grid-template-columns:36px 1fr; padding:14px 0; border-top:1px solid var(--line); color:var(--text-2); font-size:15px; }
+  .body li:last-child { border-bottom:1px solid var(--line); }
+  .body li span { font-family:var(--mono); font-size:12px; color:var(--accent); font-weight:600; padding-top:3px; }
+  .assure { display:flex; gap:12px; align-items:flex-start; padding:18px 20px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--text-2); font-size:15px; }
+  .actions { display:flex; gap:12px; flex-wrap:wrap; margin:28px 0 64px; }
+  @media (max-width: 900px) { .facts, .body { grid-template-columns:1fr; } .body { gap:32px; } }
+{% endblock %}
+{% block content %}
+<section class="case-hero">
+  <div class="container">
+    <a href="/#services" class="back">← Бүх үйлчилгээ</a>
+    <div class="meta" style="display:flex;justify-content:space-between"><span class="label accent">{{ service.category }}</span><span class="label">Үйлчилгээ {{ service.num }}</span></div>
+    <h1>{{ service.name }}</h1>
+    <p>{{ service.lead }}</p>
+    <div class="visual v-{{ service.visual }}">{% include "checker/landing/_visual.html" with v=service.visual %}</div>
+  </div>
+</section>
+
+<div class="container">
+  <div class="facts">
+    <div><span class="label">Үнэ</span><b>{{ service.price }}</b><small>{{ service.price_note }}</small></div>
+    <div><span class="label">Хугацаа</span><b>{{ service.time }}</b><small>{{ service.time_note }}</small></div>
+    <div><span class="label">Эхлэх</span><b>Үнэгүй оношилгоо</b><small>Ажил эхлэхээс өмнө үнээ тохирно</small></div>
+  </div>
+
+  <div class="body">
+    <div>
+      <span class="label">Хэзээ хэрэгтэй вэ</span>
+      <h2>Энэ юунд тустай вэ?</h2>
+      <ul>{% for h in service.helps %}<li><span>✓</span>{{ h }}</li>{% endfor %}</ul>
+    </div>
+    <div>
+      <span class="label">Ажлын явц</span>
+      <h2>Бид юу хийх вэ?</h2>
+      <ol>{% for step in service.steps %}<li><span>{{ forloop.counter|stringformat:"02d" }}</span>{{ step }}</li>{% endfor %}</ol>
+    </div>
+  </div>
+
+  <div class="assure"><span>{{ service.note_icon }}</span><span>{{ service.note }}</span></div>
+  <div class="actions">
+    <button type="button" class="btn btn-accent" data-contact="{{ service.topic }}">{{ service.cta }}</button>
+    <a href="/#pricing" class="btn btn-line">Үнийг харах</a>
+  </div>
+</div>
+
+<section class="group more">
+  <div class="container">
+    <span class="label">Бусад үйлчилгээ</span>
+    <div class="grid-3">
+      {% for s in services %}{% if s.slug != service.slug %}
+      <a href="{% url 'landing_service' s.slug %}" class="card">
+        <div style="display:flex;justify-content:space-between"><span class="label">{{ s.category }}</span><span class="label">{{ s.num }}</span></div>
+        <h3>{{ s.name }}</h3>
+        <p>{{ s.lead }}</p>
+        <div class="foot"><span class="text-link">Дэлгэрэнгүй <span aria-hidden="true">→</span></span></div>
+      </a>
+      {% endif %}{% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

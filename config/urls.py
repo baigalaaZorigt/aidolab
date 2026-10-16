@@ -1,13 +1,19 @@
 from django.contrib import admin
 from django.urls import path
 
-from checker import accounts, views, workspace
+from checker import accounts, landing, oauth, views, workspace
 
 urlpatterns = [
-    path("", views.dashboard, name="dashboard"),
+    path("", landing.home, name="home"),
+    path("dashboard/", views.dashboard, name="dashboard"),
+    path("uilchilgee/<slug:slug>/", landing.service_page, name="landing_service"),
+    path("contact/", landing.contact, name="contact"),
     path("login/", accounts.login_view, name="login"),
     path("signup/", accounts.signup_view, name="signup"),
     path("logout/", accounts.logout_view, name="logout"),
+    path("oauth/<str:provider>/start/", oauth.start, name="oauth_start"),
+    path("oauth/<str:provider>/callback/", oauth.callback, name="oauth_callback"),
+    path("signup/finish/", oauth.finish, name="oauth_finish"),
     path("account/", accounts.account_view, name="account"),
     path("billing/", workspace.billing, name="billing"),
     path("billing/invoice/<int:pk>/", workspace.invoice, name="invoice"),

@@ -1,0 +1,38 @@
+{% if v == "deploy" %}
+<div class="term">
+  <div class="term-bar"><i></i><i></i><i></i></div>
+  <div><span class="dim">$</span> git push origin main</div>
+  <div><span class="ok">✓</span> Аюулгүй байдлын шалгалт <span class="acc">92/100</span></div>
+  <div><span class="ok">✓</span> Build · Python 3.12</div>
+  <div><span class="ok">✓</span> SSL сертификат</div>
+  <div><span class="dim">→</span> https://<span class="acc">таны-апп</span>.aidolab.mn</div>
+</div>
+<span class="live-pill"><i></i>Ажиллаж байна</span>
+{% elif v == "rescue" %}
+<div class="score-cmp">
+  <div class="row"><span>Өмнө</span><span class="track"><i style="width:34%;background:var(--risk)"></i></span><b>34/100</b></div>
+  <div class="row"><span>Дараа</span><span class="track"><i style="width:92%;background:var(--ok)"></i></span><b>92/100</b></div>
+</div>
+<ol class="pipeline">
+  <li><span>01</span>Ил гарсан API түлхүүр<em style="color:var(--ok)">ЗАССАН</em></li>
+  <li><span>02</span>DEBUG = True<em style="color:var(--ok)">ЗАССАН</em></li>
+  <li><span>03</span>Эмзэг сангууд<em style="color:var(--ok)">ЗАССАН</em></li>
+</ol>
+{% elif v == "finish" %}
+<span class="label" style="display:block;margin-bottom:18px">Таны апп-д нэмэх боломжууд</span>
+<div class="chips">
+  <span class="chip"><i>✓</i>Нэвтрэх / Бүртгүүлэх</span>
+  <span class="chip"><i>✓</i>Өгөгдлийн сан</span>
+  <span class="chip"><i>✓</i>QPay төлбөр</span>
+  <span class="chip"><i>✓</i>Google нэвтрэлт</span>
+  <span class="chip"><i>✓</i>Файл хуулах</span>
+  <span class="chip todo"><i>·</i>И-мэйл мэдэгдэл</span>
+  <span class="chip todo"><i>·</i>Админ самбар</span>
+</div>
+{% else %}
+<div class="bubbles">
+  <div class="bubble me">Миний апп яагаад удаан ажиллаад байна вэ?</div>
+  <div class="bubble">Хуудас бүр өгөгдлийн сангаас бүх мэдээллийг татаж байна. Хайлтад индекс нэмбэл 10 дахин хурдан болно.</div>
+  <div class="bubble me">Хамгийн хямд сервер аль нь вэ?</div>
+</div>
+{% endif %}

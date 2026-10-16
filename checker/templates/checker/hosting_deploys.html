@@ -20,6 +20,6 @@
 </table>
 <p class="help" style="margin-top:14px">{{ plan.name }} багц: {{ services|length }} / {{ plan.apps }} апп.</p>
 {% else %}
-<div class="box empty"><p>Deploy хийсэн апп алга.</p><a href="/" class="btn primary">Үйлчилгээнүүд рүү очих</a></div>
+<div class="box empty"><p>Deploy хийсэн апп алга.</p><a href="{% url 'dashboard' %}" class="btn primary">Үйлчилгээнүүд рүү очих</a></div>
 {% endif %}
 {% endblock %}

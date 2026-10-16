@@ -1,8 +1,9 @@
 {% extends "checker/auth_base.html" %}
-{% block title %}Бүртгүүлэх · aidolab{% endblock %}
+{% block title %}Бүртгүүлэх · AIDO Lab Mongolia{% endblock %}
 {% block content %}
 <h1>Бүртгүүлэх</h1>
 <p class="sub">Хэдхэн секундэд бүртгэл үүсгээд эхний repo-гоо шалгуулаарай.</p>
+{% include "checker/_oauth_buttons.html" with verb="бүртгүүлэх" %}
 {% if error %}<div class="alert"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><div>{{ error }}</div></div>{% endif %}
 <form method="post">
   {% csrf_token %}
@@ -21,9 +22,9 @@
   </div>
   {% if needs_code %}
   <div class="field">
-    <label for="code">Ангийн код</label>
+    <label for="code">Урилгын код</label>
     <div class="input"><input id="code" name="code" required autocomplete="off"></div>
-    <div class="help">Кодыг багшаасаа авна уу.</div>
+    <div class="help">Кодыг AIDO Lab-аас авна уу.</div>
   </div>
   {% endif %}
   <button type="submit" class="btn primary">Бүртгүүлэх</button>

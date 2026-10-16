@@ -315,3 +315,42 @@ class Job(models.Model):
 
     class Meta:
         ordering = ["run_after", "pk"]
+
+
+class ContactRequest(models.Model):
+    """Help request sent from the public landing page (no account needed)."""
+
+    contact = models.CharField(max_length=200)  # name + phone, as typed
+    link = models.CharField(max_length=500, blank=True)
+    message = models.TextField(max_length=3000, blank=True)
+    topic = models.CharField(max_length=50, blank=True)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    handled = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class SocialAccount(models.Model):
+    """A GitHub or Google login linked to a user.
+
+    The GitHub token only has read:user + user:email scopes (public profile and
+    email), used to list the user's public repos. Never shown in the UI.
+    """
+
+    PROVIDERS = {"github": "GitHub", "google": "Google"}
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="social_accounts")
+    provider = models.CharField(max_length=20)
+    uid = models.CharField(max_length=100)
+    login = models.CharField(max_length=200, blank=True)  # GitHub username or Google email
+    token = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["provider", "uid"], name="unique_social_uid")]
+
+    @property
+    def provider_label(self) -> str:
+        return self.PROVIDERS.get(self.provider, self.provider)

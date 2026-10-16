@@ -23,7 +23,7 @@
         <div class="field">
           <label>Имэйл</label>
           <div class="input"><input value="{{ user.email }}" disabled></div>
-          <div class="help">Имэйл солих бол багшдаа хандана уу.</div>
+          <div class="help">Имэйл солих бол AIDO Lab-тай холбогдоно уу.</div>
         </div>
         <button type="submit" class="btn primary">Хадгалах</button>
       </div>
@@ -31,15 +31,35 @@
   </section>
 
   <section>
+    <div class="box">
+      <div class="box-head"><h3>Холбосон бүртгэлүүд</h3></div>
+      <div class="box-body" style="display:grid;gap:14px">
+        {% for p in providers %}
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <div><b>{{ p.label }}</b>
+            <div class="muted" style="font-size:13px">{% if p.account %}Холбогдсон · {{ p.account.login }}{% else %}Холбоогүй{% endif %}</div>
+          </div>
+          {% if not p.account and p.enabled %}<a class="btn" href="{% url 'oauth_start' p.key %}?next=/account/">{{ p.label }} холбох</a>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <section>
     <form method="post" class="box">
       {% csrf_token %}
       <input type="hidden" name="action" value="password">
-      <div class="box-head"><h3>Нууц үг солих</h3></div>
+      <div class="box-head"><h3>{% if user.has_usable_password %}Нууц үг солих{% else %}Нууц үг тохируулах{% endif %}</h3></div>
       <div class="box-body">
+        {% if user.has_usable_password %}
         <div class="field">
           <label for="old_password">Одоогийн нууц үг</label>
           <div class="input"><input id="old_password" name="old_password" type="password" required autocomplete="current-password"></div>
         </div>
+        {% else %}
+        <p class="help" style="margin:0 0 16px">Та GitHub эсвэл Google-ээр бүртгүүлсэн. Нууц үг тохируулбал имэйлээрээ ч нэвтэрч болно.</p>
+        {% endif %}
         <div class="field">
           <label for="new_password">Шинэ нууц үг</label>
           <div class="input"><input id="new_password" name="new_password" type="password" required minlength="8" autocomplete="new-password"></div>

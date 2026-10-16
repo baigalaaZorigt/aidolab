@@ -1,0 +1,268 @@
+{% load static %}<!doctype html>
+<html lang="mn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}AIDO Lab Mongolia — AI-аар эхлүүлсэн төслийг дуусгаж, онлайн болгоно{% endblock %}</title>
+<meta name="description" content="AI-аар бичүүлсэн кодыг засаж, аюулгүй болгож, интернетэд байршуулна. Монгол хэлээр, төгрөгөөр.">
+<link rel="icon" type="image/svg+xml" href="{% static 'checker/logo-mark.svg' %}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout modelled on relux.works/en/work: calm surfaces, case rows, mono labels. */
+  :root {
+    --display:"Inter Tight", Inter, system-ui, sans-serif; --body:Inter, system-ui, sans-serif; --mono:"JetBrains Mono", ui-monospace, monospace;
+    --bg:#f4f6f8; --bg-alt:#e9edf2; --surface:#fbfcfd; --line:#d3d9e0; --ink:#13213c; --ink-soft:#1f2937;
+    --text:#111827; --text-2:#4b5563; --muted:#6b7280; --on-ink:#f3f4f6; --on-ink-muted:#b6bfcc;
+    --accent:#1f5aa8; --accent-hover:#184a8c; --accent-soft:#1f5aa81a; --gold:#f2b230; --ok:#15803d; --warn:#b45309; --risk:#c2410c;
+    --v1:#dfe7f3; --v2:#e2ebe4; --v3:#e7e3f1; --v4:#efe8dc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#0f1318; --bg-alt:#151a21; --surface:#1a2028; --line:#2c3440; --ink:#080b0f; --ink-soft:#141920;
+      --text:#e7ebf0; --text-2:#bcc4cf; --muted:#9aa4b2; --on-ink:#e7ebf0; --on-ink-muted:#aab4c2;
+      --accent:#60a5fa; --accent-hover:#93c5fd; --accent-soft:#60a5fa26; --ok:#4ade80; --warn:#fbbf24; --risk:#fb923c;
+      --v1:#1b2535; --v2:#1a2620; --v3:#221f30; --v4:#2a241b;
+    }
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.6 var(--body); -webkit-font-smoothing:antialiased; }
+  a { color:inherit; text-decoration:none; }
+  ::selection { background:#dbeafe; color:#1e3a8a; }
+  section[id] { scroll-margin-top:72px; }
+  .container { max-width:1180px; margin:0 auto; padding:0 24px; }
+  .label { font-family:var(--mono); font-size:11.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  .label.accent { color:var(--accent); }
+  h1, h2, h3 { font-family:var(--display); letter-spacing:-.02em; margin:0; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; border-radius:6px; padding:10px 18px; font:600 14px/1.2 var(--body); border:1px solid transparent; cursor:pointer; white-space:nowrap; transition:background .15s, transform .09s; }
+  .btn:active { transform:translateY(1px); }
+  .btn-dark { background:var(--ink); color:#fff; }
+  .btn-dark:hover { background:var(--ink-soft); }
+  .btn-accent { background:var(--accent); color:#fff; }
+  .btn-accent:hover { background:var(--accent-hover); }
+  .btn-line { border-color:var(--line); background:var(--surface); color:var(--text); }
+  .btn-line:hover { background:var(--bg-alt); }
+  @media (prefers-color-scheme: dark) { .btn-dark { background:var(--text); color:var(--bg); } .btn-dark:hover { background:#fff; } }
+  .text-link { display:inline-flex; align-items:center; gap:6px; font-weight:600; font-size:14px; border-bottom:1.5px solid currentColor; padding-bottom:2px; }
+  .text-link span { transition:transform .15s; }
+  .text-link:hover span, a:hover > .text-link span { transform:translateX(3px); }
+
+  /* Header */
+  .site-header { position:sticky; top:0; z-index:40; background:color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter:blur(10px); border-bottom:1px solid var(--line); }
+  .header-inner { height:68px; display:flex; align-items:center; justify-content:space-between; gap:20px; }
+  .brand { display:flex; align-items:center; gap:10px; font-family:var(--display); font-weight:700; font-size:19px; letter-spacing:-.02em; white-space:nowrap; }
+  .brand .logo-mark { width:30px; height:auto; flex:none; }
+  .wordmark { display:flex; flex-direction:column; line-height:1; white-space:nowrap; font-weight:500; font-size:20px; color:var(--ink); }
+  .wordmark b { font-weight:800; }
+  .wordmark small { font-family:var(--body); font-size:9.5px; font-weight:500; letter-spacing:.42em; margin-top:4px; padding-left:1px; }
+  @media (prefers-color-scheme: dark) { .wordmark { color:var(--text); } }
+  .site-footer .wordmark { color:#fff; }
+  .nav { display:flex; gap:28px; font-size:14px; font-weight:500; color:var(--text-2); }
+  .nav a { padding:6px 0; border-bottom:2px solid transparent; }
+  .nav a:hover { color:var(--text); }
+  .nav a.active { color:var(--text); border-color:var(--accent); }
+  .header-actions { display:flex; align-items:center; gap:10px; }
+
+  /* Hero */
+  .hero { background:var(--bg-alt); border-bottom:1px solid var(--line); padding:88px 0 76px; }
+  .hero h1 { font-size:clamp(36px, 6vw, 64px); line-height:1.04; font-weight:600; max-width:820px; margin:14px 0 22px; }
+  .hero p { color:var(--text-2); font-size:18px; max-width:640px; margin:0; }
+  .hero-facts { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:24px; margin-top:56px; padding-top:28px; border-top:1px solid var(--line); }
+  .hero-facts b { display:block; font-family:var(--display); font-size:22px; font-weight:600; margin-top:4px; letter-spacing:-.01em; }
+
+  /* Case rows ("Selected work") */
+  .group { padding:72px 0; }
+  .group-head { display:flex; justify-content:space-between; align-items:flex-end; gap:24px; padding-bottom:22px; border-bottom:1px solid var(--line); }
+  .group-head h2 { font-size:clamp(26px, 3.4vw, 36px); font-weight:600; margin-top:8px; }
+  .group-head p { color:var(--text-2); max-width:420px; margin:0; font-size:15px; }
+  .case-row { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:48px; align-items:center; padding:36px 0; border-bottom:1px solid var(--line); }
+  .case-copy .meta { display:flex; justify-content:space-between; gap:12px; }
+  .case-copy h3 { font-size:30px; font-weight:600; margin:10px 0 12px; }
+  .case-copy h3 a:hover { color:var(--accent); }
+  .tagline { font-weight:600; font-size:17px; margin:0 0 12px; }
+  .case-copy p { color:var(--text-2); font-size:15px; margin:0 0 22px; }
+
+  /* Visual panels (pure HTML/CSS diagrams) */
+  .visual { display:block; border-radius:8px; border:1px solid var(--line); min-height:320px; padding:32px; position:relative; overflow:hidden; transition:box-shadow .22s, transform .22s; }
+  a.visual:hover { box-shadow:0 10px 28px #1118271a; transform:translateY(-2px); }
+  .v-deploy { background:var(--ink); color:var(--on-ink); border-color:var(--ink); }
+  .v-rescue { background:var(--v1); } .v-finish { background:var(--v2); } .v-consult { background:var(--v4); }
+  .term { font-family:var(--mono); font-size:13px; line-height:2; }
+  .term .dim { color:var(--on-ink-muted); } .term .ok { color:#4ade80; } .term .acc { color:#93c5fd; }
+  .term-bar { display:flex; gap:6px; margin-bottom:18px; } .term-bar i { width:10px; height:10px; border-radius:50%; background:#374151; }
+  .live-pill { position:absolute; right:28px; bottom:28px; display:flex; align-items:center; gap:8px; background:#ffffff14; border:1px solid #ffffff26; padding:8px 14px; border-radius:99px; font-size:13px; }
+  .live-pill i { width:8px; height:8px; border-radius:50%; background:#4ade80; box-shadow:0 0 0 4px #4ade8033; }
+  .pipeline { list-style:none; margin:0; padding:0; }
+  .pipeline li { display:grid; grid-template-columns:36px 1fr auto; align-items:center; gap:10px; padding:12px 0; border-top:1px solid #11182722; font-size:14px; font-weight:600; }
+  .pipeline li:last-child { border-bottom:1px solid #11182722; }
+  .pipeline li span { font-family:var(--mono); font-size:12px; color:var(--muted); font-weight:500; }
+  .pipeline li em { font-style:normal; font-family:var(--mono); font-size:11.5px; font-weight:600; }
+  @media (prefers-color-scheme: dark) { .pipeline li, .pipeline li:last-child { border-color:#ffffff1f; } }
+  .score-cmp { display:grid; gap:22px; margin-bottom:26px; }
+  .score-cmp .row { display:grid; grid-template-columns:70px 1fr 64px; align-items:center; gap:14px; font-size:13px; font-weight:600; }
+  .score-cmp .track { height:12px; border-radius:99px; background:#11182714; overflow:hidden; }
+  .score-cmp .track i { display:block; height:100%; border-radius:99px; }
+  .score-cmp b { font-family:var(--mono); text-align:right; }
+  .chips { display:flex; flex-wrap:wrap; gap:10px; }
+  .chip { display:inline-flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:10px 14px; font-size:14px; font-weight:600; }
+  .chip i { font-style:normal; width:20px; height:20px; border-radius:50%; display:grid; place-items:center; font-size:11px; background:var(--ok); color:#fff; }
+  .chip.todo i { background:transparent; border:1.5px dashed var(--muted); color:transparent; }
+  .bubbles { display:grid; gap:12px; max-width:420px; }
+  .bubble { background:var(--surface); border:1px solid var(--line); border-radius:12px 12px 12px 4px; padding:12px 16px; font-size:14px; }
+  .bubble.me { justify-self:end; background:var(--accent); border-color:var(--accent); color:#fff; border-radius:12px 12px 4px 12px; }
+
+  /* "More" grid */
+  .more { background:var(--bg-alt); border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+  .grid-2 { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:28px; margin-top:32px; }
+  .grid-3 { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:24px; margin-top:32px; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:26px; }
+  .card h3 { font-size:20px; font-weight:600; margin:10px 0 8px; }
+  .card p { color:var(--text-2); font-size:15px; margin:0; }
+  .card .foot { margin-top:18px; padding-top:14px; border-top:1px solid var(--line); font-size:13px; color:var(--muted); }
+  .card.featured { border:2px solid var(--accent); padding:25px; position:relative; }
+  .price { font-family:var(--display); font-size:30px; font-weight:600; margin:12px 0 2px; letter-spacing:-.02em; }
+  .ticks { list-style:none; padding:16px 0 0; margin:16px 0 0; border-top:1px solid var(--line); display:grid; gap:8px; font-size:14px; color:var(--text-2); }
+  .ticks li::before { content:"✓  "; color:var(--accent); font-weight:700; }
+  .note { margin-top:24px; padding:14px 16px; border-radius:6px; background:#f59e0b14; border:1px solid #f59e0b55; font-size:13.5px; color:var(--text-2); }
+  .badge { position:absolute; top:-11px; right:20px; background:var(--accent); color:#fff; font-family:var(--mono); font-size:10.5px; font-weight:700; padding:3px 10px; border-radius:4px; text-transform:uppercase; }
+
+  /* FAQ */
+  .faq { max-width:820px; }
+  .faq details { border-bottom:1px solid var(--line); }
+  .faq summary { list-style:none; cursor:pointer; display:flex; justify-content:space-between; gap:16px; padding:22px 0; font-weight:600; font-size:17px; }
+  .faq summary::-webkit-details-marker { display:none; }
+  .faq summary::after { content:"+"; font-family:var(--mono); color:var(--muted); font-size:20px; line-height:1; }
+  .faq details[open] summary::after { content:"−"; }
+  .faq details p { margin:0 0 22px; color:var(--text-2); }
+
+  /* Closing CTA + footer */
+  .cta-band { background:var(--bg-alt); border-top:1px solid var(--line); padding:56px 0; }
+  .cta-inner { display:flex; justify-content:space-between; align-items:center; gap:24px; flex-wrap:wrap; }
+  .cta-inner h2 { font-size:clamp(24px, 3vw, 32px); font-weight:600; }
+  .cta-inner p { color:var(--text-2); margin:8px 0 0; }
+  .flash { background:#15803d14; border:1px solid #15803d55; color:var(--text); padding:12px 16px; border-radius:6px; margin-bottom:24px; font-size:14px; }
+  .site-footer { background:var(--ink); color:var(--on-ink); padding:56px 0 40px; }
+  .footer-inner { display:grid; grid-template-columns:2fr 1fr 1fr; gap:32px; }
+  .site-footer p { color:var(--on-ink-muted); font-size:14px; max-width:460px; margin:14px 0 0; }
+  .site-footer ul { list-style:none; margin:0; padding:0; display:grid; gap:12px; font-size:14px; }
+  .site-footer a:hover { color:#fff; text-decoration:underline; }
+  .copyright { margin-top:44px; padding-top:20px; border-top:1px solid #ffffff1f; font-size:13px; color:var(--on-ink-muted); display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+
+  /* Contact dialog */
+  dialog { border:1px solid var(--line); border-radius:10px; padding:28px; width:min(520px, calc(100vw - 32px)); background:var(--surface); color:var(--text); box-shadow:0 18px 45px #1118273d; }
+  dialog::backdrop { background:#1118278a; backdrop-filter:blur(3px); }
+  dialog h3 { font-size:24px; font-weight:600; margin:6px 0 4px; }
+  dialog .x { position:absolute; top:14px; right:14px; background:none; border:0; font-size:20px; color:var(--muted); cursor:pointer; }
+  .f { margin-top:16px; }
+  .f label { display:block; font-family:var(--mono); font-size:12px; color:var(--text-2); margin-bottom:6px; }
+  .f input, .f textarea { width:100%; border:1px solid var(--line); border-radius:6px; padding:11px 12px; font:inherit; font-size:14px; background:var(--bg); color:var(--text); }
+  .f input:focus, .f textarea:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .hp { position:absolute; left:-9999px; }
+
+  {% block style %}{% endblock %}
+
+  @media (max-width: 900px) {
+    .nav { display:none; }
+    .hero { padding:56px 0 48px; }
+    .hero-facts { grid-template-columns:repeat(2, minmax(0,1fr)); }
+    .case-row { grid-template-columns:1fr; gap:24px; }
+    .visual { min-height:0; padding:24px; }
+    .live-pill { position:static; display:inline-flex; margin-top:16px; }
+    .grid-2, .grid-3, .footer-inner { grid-template-columns:1fr; }
+    .group-head { flex-direction:column; align-items:flex-start; }
+    .container { padding:0 16px; }
+  }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="container header-inner">
+    <a href="{% url 'home' %}" class="brand" aria-label="AIDO Lab Mongolia">{% include "checker/_logo_mark.html" %}<span class="wordmark"><span><b>AIDO</b> Lab</span><small>mongolia</small></span></a>
+    <nav class="nav" aria-label="Үндсэн цэс">
+      <a href="/#services" {% if service %}class="active"{% endif %}>Үйлчилгээ</a>
+      <a href="/#guarantees">Баталгаа</a>
+      <a href="/#process">Хэрхэн ажилладаг</a>
+      <a href="/#pricing">Үнэ</a>
+      <a href="/#faq">Асуулт</a>
+    </nav>
+    <div class="header-actions">
+      {% if user.is_authenticated %}
+      <a href="{% url 'dashboard' %}" class="btn btn-dark">Миний самбар →</a>
+      {% else %}
+      <a href="{% url 'login' %}" class="btn btn-dark">Нэвтрэх</a>
+      {% endif %}
+    </div>
+  </div>
+</header>
+
+<main>
+  {% block content %}{% endblock %}
+
+  <section class="cta-band" id="contact">
+    <div class="container">
+      {% if sent %}<div class="flash">Баярлалаа! Таны хүсэлтийг хүлээн авлаа. Бид тантай удахгүй холбогдоно.</div>{% endif %}
+      <div class="cta-inner">
+        <div>
+          <h2>Гацсан хэсгийг нь бидэнд даатга.</h2>
+          <p>Юу хийх гэж байгаа, юу дээр гацсан, эсвэл одоогийн код юуг дааж чадахгүй байгааг бидэнд хэлээрэй.</p>
+        </div>
+        <button type="button" class="btn btn-accent" data-contact="">Холбогдох</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-inner">
+      <div>
+        <a href="{% url 'home' %}" class="brand">{% include "checker/_logo_mark.html" %}<span class="wordmark"><span><b>AIDO</b> Lab</span><small>mongolia</small></span></a>
+        <p>AI-аар эхлүүлсэн төслийг засаж, дуусгаж, интернетэд байршуулдаг студи. Монгол хэлээр, төгрөгөөр. Таны код, таны өмч.</p>
+      </div>
+      <ul>
+        {% for s in services %}<li><a href="{% url 'landing_service' s.slug %}">{{ s.name }}</a></li>{% endfor %}
+      </ul>
+      <ul>
+        <li><a href="/#pricing">Үнэ</a></li>
+        <li><a href="/#faq">Асуулт хариулт</a></li>
+        <li><a href="mailto:info@aidolab.mn">info@aidolab.mn</a></li>
+        <li><a href="{% url 'login' %}">Нэвтрэх</a></li>
+      </ul>
+    </div>
+    <div class="copyright"><span>© 2026 AIDO Lab Mongolia</span><span>Таны код, таны өмч.</span></div>
+  </div>
+</footer>
+
+<!-- Contact dialog: saved as ContactRequest, teachers read it in /admin/ -->
+<dialog id="contactDialog" aria-labelledby="contactTitle">
+  <button type="button" class="x" aria-label="Хаах" onclick="this.closest('dialog').close()">✕</button>
+  <span class="label accent">Үнэгүй оношилгоо</span>
+  <h3 id="contactTitle">Төслөө бидэнд илгээх</h3>
+  <p style="margin:0;color:var(--text-2);font-size:14px">Бид таны кодыг харж, ямар засвар хэрэгтэйг үнэгүй хэлж өгнө.</p>
+  <form method="post" action="{% url 'contact' %}">
+    {% csrf_token %}
+    <input type="hidden" name="topic" id="contactTopic">
+    <input type="hidden" name="back" value="{{ request.path }}">
+    <input type="text" name="website" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true">
+    <div class="f"><label for="c-contact">Таны нэр, утас *</label>
+      <input id="c-contact" name="contact" required maxlength="200" placeholder="Баярбаатар, 9911-XXXX"></div>
+    <div class="f"><label for="c-link">Төслийн холбоос (GitHub / Drive / ChatGPT чат)</label>
+      <input id="c-link" name="link" maxlength="500" placeholder="https://github.com/..."></div>
+    <div class="f"><label for="c-msg">Юу дээр гацсан бэ?</label>
+      <textarea id="c-msg" name="message" rows="3" maxlength="3000" placeholder="Компьютер дээр ажилладаг ч нэвтрэх хэсэг дээрээ гацаад байна..."></textarea></div>
+    <button type="submit" class="btn btn-accent" style="width:100%;margin-top:20px;padding:13px">Илгээх</button>
+  </form>
+</dialog>
+
+<script>
+  const dlg = document.getElementById('contactDialog');
+  document.querySelectorAll('[data-contact]').forEach(el => el.addEventListener('click', () => {
+    document.getElementById('contactTopic').value = el.dataset.contact || '';
+    dlg.showModal();
+  }));
+  dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+</script>
+</body>
+</html>

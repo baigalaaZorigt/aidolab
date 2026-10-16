@@ -1,11 +1,11 @@
 """Plan limits and prices (MNT). Edit here to change pricing."""
 
 PLANS = {
-    "free": {"name": "Үнэгүй", "price": 0, "apps": 1, "database": False, "storage_mb": 0,
+    "free": {"name": "Үнэгүй", "desc": "Туршиж үзэх, нэг апп байршуулахад", "price": 0, "apps": 1, "database": False, "storage_mb": 0,
              "domains": 0, "sleeps": True, "dedicated_ip": False},
-    "student": {"name": "Сурагч", "price": 29000, "apps": 3, "database": True, "storage_mb": 1024,
+    "student": {"name": "Сурагч", "desc": "Сурагч, суралцагчдад зориулсан хөнгөлөлттэй багц", "price": 29000, "apps": 3, "database": True, "storage_mb": 1024,
                 "domains": 1, "sleeps": True, "dedicated_ip": False},
-    "pro": {"name": "Pro", "price": 79000, "apps": 10, "database": True, "storage_mb": 10240,
+    "pro": {"name": "Pro", "desc": "Бизнес, байнга ажиллах апп-д", "price": 79000, "apps": 10, "database": True, "storage_mb": 10240,
             "domains": 5, "sleeps": False, "dedicated_ip": True},
 }
 PLAN_DAYS = 30

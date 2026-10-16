@@ -1,0 +1,23 @@
+{% extends "checker/auth_base.html" %}
+{% block title %}Бүртгэл дуусгах · AIDO Lab Mongolia{% endblock %}
+{% block content %}
+<h1>Бүртгэлээ дуусгах</h1>
+<p class="sub">{{ label }}-ээр орлоо: <b>{{ email }}</b>. Нэг алхам үлдлээ.</p>
+{% if error %}<div class="alert"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><div>{{ error }}</div></div>{% endif %}
+<form method="post">
+  {% csrf_token %}
+  <div class="field">
+    <label for="name">Нэр</label>
+    <div class="input"><input id="name" name="name" required autocomplete="given-name" value="{{ name|default:'' }}" autofocus></div>
+  </div>
+  {% if needs_code %}
+  <div class="field">
+    <label for="code">Урилгын код</label>
+    <div class="input"><input id="code" name="code" required autocomplete="off"></div>
+    <div class="help">Кодыг AIDO Lab-аас авна уу.</div>
+  </div>
+  {% endif %}
+  <button type="submit" class="btn primary">Бүртгэл үүсгэх</button>
+</form>
+<p class="switch"><a href="{% url 'login' %}">Буцах</a></p>
+{% endblock %}

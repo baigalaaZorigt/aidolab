@@ -74,7 +74,7 @@ DOMAINS_DIR = Path(os.environ.get("DOMAINS_DIR", "/srv/aidolab/data/domains"))
 DOMAINS_STATUS = Path(os.environ.get("DOMAINS_STATUS", "/srv/aidolab/data/domains-status.json"))
 
 LOGIN_URL = "/login/"
-LOGIN_REDIRECT_URL = "/"
+LOGIN_REDIRECT_URL = "/dashboard/"
 
 LANGUAGE_CODE = "mn"
 TIME_ZONE = "Asia/Ulaanbaatar"

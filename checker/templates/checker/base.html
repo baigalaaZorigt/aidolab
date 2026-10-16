@@ -1,9 +1,10 @@
-<!doctype html>
+{% load static %}<!doctype html>
 <html lang="mn">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}aidolab{% endblock %}</title>
+<title>{% block title %}AIDO Lab Mongolia{% endblock %}</title>
+<link rel="icon" type="image/svg+xml" href="{% static 'checker/logo-mark.svg' %}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -13,8 +14,8 @@
 <body>
 <header class="topbar">
   <div class="tb-left">
-    <a href="/" class="logo" aria-label="Нүүр"><span>a</span></a>
-    <div class="workspace"><span class="avatar">{{ user.first_name|first|upper|default:"?" }}</span>Миний ажлын талбар</div>
+    <a href="{% url 'dashboard' %}" class="logo" aria-label="Нүүр">{% include "checker/_logo_mark.html" %}</a>
+    <a href="{% url 'home' %}" class="brand workspace" title="Нүүр хуудас"><b>AIDO<i> Lab</i></b><small>Миний ажлын талбар</small></a>
   </div>
   <nav class="crumbs">
     <svg class="i" viewBox="0 0 24 24"><circle cx="7" cy="16" r="3"/><circle cx="17" cy="16" r="3"/><circle cx="12" cy="7" r="3"/></svg>
@@ -26,7 +27,7 @@
     <details class="user-menu mobile-only">
       <summary aria-label="Цэс"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></summary>
       <div class="dropdown">
-        <a href="/">Үйлчилгээнүүд</a>
+        <a href="{% url 'dashboard' %}">Үйлчилгээнүүд</a>
         <a href="/deploys/">Deploy-ууд</a>
         <a href="/metrics/">Metrics</a>
         <a href="/logs/">Системийн лог</a>
@@ -43,7 +44,7 @@
   {% with name=request.resolver_match.url_name %}
   <aside class="sidebar">
     <nav class="nav">
-      <a href="/" {% if name == "dashboard" or name == "new" or "service" in name or name == "rescan" %}class="active"{% endif %}>
+      <a href="{% url 'dashboard' %}" {% if name == "dashboard" or name == "new" or "service" in name or name == "rescan" %}class="active"{% endif %}>
         <svg class="i" viewBox="0 0 24 24"><circle cx="7" cy="16" r="3"/><circle cx="17" cy="16" r="3"/><circle cx="12" cy="7" r="3"/></svg>Үйлчилгээнүүд</a>
     </nav>
     <div class="nav-label">Hosting</div>
@@ -70,7 +71,7 @@
       <details class="side-user">
         <summary {% if name == "account" %}class="active"{% endif %}>
           <span class="avatar">{{ user.first_name|first|upper|default:"?" }}</span>
-          <span class="side-user-text"><b>AI Academy Asia</b><span>{{ user.email|default:user.username }}</span></span>
+          <span class="side-user-text"><b>{{ user.first_name|default:"Миний бүртгэл" }}</b><span>{{ user.email|default:user.username }}</span></span>
           <svg class="i chev" viewBox="0 0 24 24"><path d="M8 10l4-4 4 4M8 14l4 4 4-4"/></svg>
         </summary>
         <div class="dropdown up">{% include "checker/_user_menu.html" %}</div>

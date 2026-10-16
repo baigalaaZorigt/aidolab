@@ -18,6 +18,6 @@
   </tbody>
 </table>
 {% else %}
-<div class="box empty"><p>Файлын сан алга. Апп-ынхаа "Файл" табаас идэвхжүүлнэ.</p><a href="/" class="btn primary">Үйлчилгээнүүд рүү очих</a></div>
+<div class="box empty"><p>Файлын сан алга. Апп-ынхаа "Файл" табаас идэвхжүүлнэ.</p><a href="{% url 'dashboard' %}" class="btn primary">Үйлчилгээнүүд рүү очих</a></div>
 {% endif %}
 {% endblock %}

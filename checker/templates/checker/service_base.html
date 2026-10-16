@@ -1,6 +1,6 @@
 {% extends "checker/base.html" %}
 {% block title %}{{ service.name }} · aidolab{% endblock %}
-{% block crumbs %}<a href="/">Тойм</a><span>/</span><b class="mono">{{ service.name }}</b>{% endblock %}
+{% block crumbs %}<a href="{% url 'dashboard' %}">Тойм</a><span>/</span><b class="mono">{{ service.name }}</b>{% endblock %}
 {% block style %}
 
   .svc-head { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; flex-wrap:wrap; margin-bottom:36px; }

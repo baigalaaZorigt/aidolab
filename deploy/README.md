@@ -31,6 +31,9 @@ sudo REPO_URL=https://github.com/baigalaaZorigt/aidolab.git bash bootstrap.sh
 #   → суулгаад certbot-оор app.aidolab.mn-ийн гэрчилгээ авна (DNS энэ IP руу заасан байх ёстой)
 #   (Private repo бол git@github.com:... URL өгнө → deploy key хэвлэнэ → Deploy keys-д нэмээд дахин ажиллуулна)
 sudo nano /etc/aidolab/env        # ANTHROPIC_API_KEY, ACCESS_CODE бөглөнө
+# Заавал биш: GitHub/Google-ээр нэвтрэх (байхгүй бол товч нь нуугдана)
+#   GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET  — GitHub OAuth App, callback: https://app.aidolab.mn/oauth/github/callback/
+#   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET  — Google OAuth client, redirect: https://app.aidolab.mn/oauth/google/callback/
 sudo bash /srv/aidolab/app/deploy/update.sh
 ```
 

@@ -114,7 +114,7 @@ def process(d: Deploy) -> None:
         return
     except Exception as e:  # AWS/API errors: show a short message, keep details in the server log
         log.exception("deploy %s failed", d.pk)
-        fail(d, f"Системийн алдаа ({type(e).__name__}). Багшид хандана уу.")
+        fail(d, f"Системийн алдаа ({type(e).__name__}). Mentor-оос тусламж хүснэ үү.")
         return
     d.state = Deploy.LIVE
     d.duration = d.elapsed

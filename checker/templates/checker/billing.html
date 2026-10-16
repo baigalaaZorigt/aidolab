@@ -25,6 +25,7 @@
   <div class="plan {% if p.key == current %}current{% endif %}">
     {% if p.key == current %}<div><span class="tag">Одоогийн</span></div>{% elif p.key == "student" %}<div><span class="tag">Санал болгох</span></div>{% else %}<div style="height:26px"></div>{% endif %}
     <h3>{{ p.name }}</h3>
+    <p class="muted" style="margin:-6px 0 0;font-size:14px">{{ p.desc }}</p>
     <div class="price">{{ p.price_label }}{% if p.price %}<small> / сар</small>{% endif %}</div>
     <ul>
       <li><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Repo шалгалт, AI зөвлөгөө</li>

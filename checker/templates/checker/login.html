@@ -1,8 +1,9 @@
 {% extends "checker/auth_base.html" %}
-{% block title %}Нэвтрэх · aidolab{% endblock %}
+{% block title %}Нэвтрэх · AIDO Lab Mongolia{% endblock %}
 {% block content %}
 <h1>Нэвтрэх</h1>
 <p class="sub">Ажлын талбартаа нэвтэрнэ үү.</p>
+{% include "checker/_oauth_buttons.html" %}
 {% if error %}<div class="alert"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><div>{{ error }}</div></div>{% endif %}
 <form method="post">
   {% csrf_token %}
@@ -14,7 +15,7 @@
   <div class="field">
     <label for="password">Нууц үг</label>
     <div class="input"><input id="password" name="password" type="password" required autocomplete="current-password"></div>
-    <div class="help">Нууц үгээ мартсан бол багшаасаа сэргээлгэнэ үү.</div>
+    <div class="help">Нууц үгээ мартсан бол info@aidolab.mn хаягаар холбогдоно уу.</div>
   </div>
   <button type="submit" class="btn primary">Нэвтрэх</button>
 </form>

@@ -11,6 +11,7 @@ from django.views.decorators.http import require_POST
 from . import domains, hosting
 from .ai import explain
 from .audit import audit
+from .oauth import github_repos
 from .models import CustomDomain, EnvVar, ScanRun, Service, profile_for
 from .naming import domain_error, normalize_domain, slug_error, slug_from_repo
 from .plans import get_plan
@@ -64,9 +65,13 @@ def user_plan(request) -> dict:
 def dashboard(request):
     services = list(request.user.services.all())
     ready = sum(1 for s in services if s.status == "ready")
+    live = sum(1 for s in services if s.deploy_state == "live")
+    # Which step of "scan -> reach 80 -> deploy" the student is on (4 = all done).
+    step = 1 if not services else 2 if not ready else 3 if not live else 4
     return render(request, "checker/dashboard.html", {
         "services": services, "ready_count": ready, "todo_count": len(services) - ready,
-        "live_count": sum(1 for s in services if s.deploy_state == "live"),
+        "live_count": live, "step": step,
+        "avg_score": round(sum(s.score for s in services) / len(services)) if services else None,
     })
 
 
@@ -78,10 +83,11 @@ def new_service(request):
         try:
             service = run_scan(request.user, context["repo_url"])
         except ScanError as e:
-            context["error"] = str(e)
+            context.update(error=str(e), repos=github_repos(request.user))
             return render(request, "checker/new.html", context)
         audit(request, "scan", f"Repo шалгав — {service.score}/100 оноо", service)
         return redirect("service", pk=service.pk)
+    context["repos"] = github_repos(request.user)
     return render(request, "checker/new.html", context)
 
 

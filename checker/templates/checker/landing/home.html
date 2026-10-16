@@ -1,0 +1,110 @@
+{% extends "checker/landing/base.html" %}
+{% block content %}
+<section class="hero">
+  <div class="container">
+    <span class="label accent">AIDO Lab Mongolia — Software Rescue Studio</span>
+    <h1>AI-аар эхлүүлсэн төслийг дуусгаж, онлайн болгоно.</h1>
+    <p>ChatGPT, Claude, Cursor, Lovable — ямар ч AI хэрэгслээр бичүүлсэн код тань гацсан уу? Туршлагатай инженерүүд засаж, аюулгүй болгоод интернетэд байршуулна.</p>
+    <div class="hero-facts">
+      <div><span class="label">Эх код</span><b>100% таны өмч</b></div>
+      <div><span class="label">Эхний оношилгоо</span><b>Үнэгүй</b></div>
+      <div><span class="label">Hosting</span><b>Эхний сар ₮0</b></div>
+      <div><span class="label">Харилцаа</span><b>Монгол хэлээр</b></div>
+    </div>
+  </div>
+</section>
+
+<section class="group" id="services">
+  <div class="container">
+    <div class="group-head">
+      <div><span class="label">Үйлчилгээ</span><h2>Төслийн гацсан шат бүрт тохирсон тусламж</h2></div>
+      <p>Бид юу хийж өгөхийг, ямар хугацаанд, ямар үнээр гэдгийг ажил эхлэхээс өмнө тодорхой хэлнэ.</p>
+    </div>
+
+    {% for s in services %}
+    <article class="case-row">
+      <a href="{% url 'landing_service' s.slug %}" class="visual v-{{ s.visual }}" aria-label="Дэлгэрэнгүй: {{ s.name }}">
+        {% include "checker/landing/_visual.html" with v=s.visual %}
+      </a>
+      <div class="case-copy">
+        <div class="meta"><span class="label">{{ s.category }}</span><span class="label">{{ s.time }}</span></div>
+        <h3><a href="{% url 'landing_service' s.slug %}">{{ s.name }}</a></h3>
+        <p class="tagline">{{ s.lead }}</p>
+        <p>{{ s.short }}</p>
+        <a class="text-link" href="{% url 'landing_service' s.slug %}">Дэлгэрэнгүй <span aria-hidden="true">→</span></a>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="group more" id="guarantees">
+  <div class="container">
+    <span class="label">Баталгаа</span>
+    <div class="grid-2">
+      <div class="card"><span class="label accent">01 / Өмч</span><h3>Таны код, санаа таны өмч</h3>
+        <p>Эх код, бизнесийн санааг гуравдагч этгээдэд хэзээ ч дамжуулахгүй. Эх кодоо хүссэн үедээ бүрэн татаж авна.</p>
+        <div class="foot">Код, өгөгдөл зөвхөн таных</div></div>
+      <div class="card"><span class="label accent">02 / Хамгаалалт</span><h3>Ажиллаж байгааг эвдэхгүй</h3>
+        <p>Ажиллаж байгаа хэсгийг тусгаарлан хамгаалж, зөвхөн гацсан, эвдэрсэн хэсэг дээр ажиллана.</p>
+        <div class="foot">Өөрчлөлт бүрийг шалгаж хүлээлгэн өгнө</div></div>
+      <div class="card"><span class="label accent">03 / Ил тод</span><h3>Энгийн монгол хэлээр</h3>
+        <p>Юу хийснээ мэргэжлийн хэллэггүйгээр тайлбарлана. Техникийн өндөр мэдлэг шаардахгүй.</p>
+        <div class="foot">Явцын тайлан монголоор</div></div>
+      <div class="card"><span class="label accent">04 / Үнэ</span><h3>Нуугдмал зардалгүй</h3>
+        <p>Төсвийг ажил эхлэхээс өмнө тохирно. Таны зөвшөөрөлгүйгээр нэмэлт төлбөр гарахгүй.</p>
+        <div class="foot">Тохирсон үнээрээ дуусна</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="group" id="process">
+  <div class="container">
+    <div class="group-head"><div><span class="label">Ажлын урсгал</span><h2>Яаж ажилладаг вэ?</h2></div></div>
+    <div class="grid-3">
+      <div class="card"><span class="label accent">Алхам 01</span><h3>Төслөө илгээх</h3>
+        <p>GitHub линк, ZIP файл эсвэл ChatGPT / Claude чатын холбоосоо илгээнэ.</p></div>
+      <div class="card"><span class="label accent">Алхам 02</span><h3>Үнэгүй оношилгоо</h3>
+        <p>Юу гацсан, засахад хэдий хугацаа, төсөв шаардахыг тодорхой хэлнэ.</p></div>
+      <div class="card"><span class="label accent">Алхам 03</span><h3>Ажлаа эхлүүлэх</h3>
+        <p>Нөхцөлөө тохирсны дараа ажиллаж, бэлэн болсон вэбээ хүлээлгэн өгнө.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="group more" id="pricing">
+  <div class="container">
+    <span class="label">Үнэ</span>
+    <div class="grid-3">
+      <div class="card"><span class="label accent">Deploy & Hosting</span><h3>Онлайн болгох</h3>
+        <div class="price">₮0</div><span class="label">эхний сард · {{ hosting_note|lower }}</span>
+        <ul class="ticks"><li>Домэйн болон SSL холболт</li><li>Серверийн тохиргоо</li><li>24/7 тасралтгүй ажиллагаа</li></ul></div>
+      <div class="card featured"><span class="badge">Их сонгогддог</span><span class="label accent">Rescue & Finishing</span><h3>Код засвар & дуусгах</h3>
+        <div class="price">Төсөл бүрээр</div><span class="label">үнэгүй оношилгооны дараа тохирно</span>
+        <ul class="ticks"><li>AI кодын алдааг цэгцлэх</li><li>Database, нэвтрэх систем</li><li>Ажиллаж байгааг хамгаалах</li></ul></div>
+      <div class="card"><span class="label accent">Consulting</span><h3>Зөвлөх үйлчилгээ</h3>
+        <div class="price">Тогтмол</div><span class="label">45–60 минутын 1-on-1 уулзалт</span>
+        <ul class="ticks"><li>Код, архитектурын анализ</li><li>Зардал хэмнэх зөвлөгөө</li><li>100% буцаан олголтын баталгаа</li></ul></div>
+    </div>
+    <div class="note"><b>Hosting сануулга:</b> төлбөр хугацаандаа хийгдээгүй бол вэб түр зогсож, төлбөр хийгдмэгц шууд сэргэнэ. Таны эх кодыг хэзээ ч устгахгүй.</div>
+  </div>
+</section>
+
+<section class="group" id="faq">
+  <div class="container">
+    <div class="group-head"><div><span class="label">Асуулт хариулт</span><h2>Түгээмэл асуултууд</h2></div></div>
+    <div class="faq">
+      <details><summary>Үнэгүй шалгана гэдэг нь юу гэсэн үг вэ?</summary>
+        <p>Кодоо эсвэл ChatGPT / Claude-аас авсан кодоо илгээхэд бид гацсан асуудлыг оношилж, ямар шийдэл хэрэгтэйг үнэгүй хэлж өгнө. Цааш засуулах эсэхээ та өөрөө шийднэ.</p></details>
+      <details><summary>AI-ийн бичсэн код хэт замбараагүй болчихсон бол яах вэ?</summary>
+        <p>Бид яг ийм кодтой өдөр бүр ажилладаг. AI кодын бүтэц, логикийг тайлж, хэрэгтэй хэсгийг цэгцлэн аюулгүй болгоно.</p></details>
+      <details><summary>Сурагч, суралцагчдад хөнгөлөлт бий юу?</summary>
+        <p>Тийм. Hosting-ийн «Сурагч» багц нь сард {{ student_price }} бөгөөд 3 апп, өгөгдлийн сан, файл хадгалах, өөрийн домэйнтэй. Нэвтэрсний дараа «Төлбөр» хэсгээс сонгоно.</p></details>
+      <details><summary>Hosting-ийн төлбөрөө төлөхгүй бол код маань устах уу?</summary>
+        <p>Үгүй. Вэб тань түр хаагдах ба төлбөр хийгдмэгц шууд ажиллана. Эх кодоо хүссэн үедээ авч болно.</p></details>
+      <details><summary>Бүртгэлтэй хэрэглэгч хаанаас нэвтрэх вэ?</summary>
+        <p>Баруун дээд буланд байгаа «Нэвтрэх» товчийг дарна уу. Бүртгэлгүй бол нэвтрэх хуудаснаас «Бүртгүүлэх» холбоосоор урилгын кодоо ашиглан бүртгүүлнэ.</p></details>
+    </div>
+  </div>
+</section>
+{% endblock %}

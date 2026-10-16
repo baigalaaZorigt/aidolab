@@ -21,6 +21,6 @@
   </tbody>
 </table>
 {% else %}
-<div class="box empty"><p>Ажиллаж байгаа апп алга. Deploy хийсний дараа энд харагдана.</p><a href="/" class="btn primary">Үйлчилгээнүүд рүү очих</a></div>
+<div class="box empty"><p>Ажиллаж байгаа апп алга. Deploy хийсний дараа энд харагдана.</p><a href="{% url 'dashboard' %}" class="btn primary">Үйлчилгээнүүд рүү очих</a></div>
 {% endif %}
 {% endblock %}

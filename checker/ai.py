@@ -53,7 +53,7 @@ def explain(result: dict) -> dict | None:
             system=SYSTEM,
             messages=[{
                 "role": "user",
-                "content": "Сурагчийн repo-г шалгасан үр дүн (JSON):\n"
+                "content": "Хэрэглэгчийн repo-г шалгасан үр дүн (JSON):\n"
                            + json.dumps(payload, ensure_ascii=False, indent=2)
                            + "\n\nАсуудал бүрийг (ижил төрлийг нэгтгэж болно) тайлбарла.",
             }],

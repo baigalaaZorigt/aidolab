@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils import timezone
 
-from .models import AuditEvent, CustomDomain, Invoice, MentorRequest, Profile, ScanRun, Service
+from .models import AuditEvent, ContactRequest, CustomDomain, Invoice, MentorRequest, Profile, ScanRun, Service
 
 
 @admin.register(Service)
@@ -61,3 +61,12 @@ class AuditEventAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(ContactRequest)
+class ContactRequestAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "contact", "topic", "link", "handled")
+    list_filter = ("handled", "topic")
+    list_editable = ("handled",)
+    search_fields = ("contact", "link", "message")
+    readonly_fields = ("contact", "link", "message", "topic", "ip", "created_at")

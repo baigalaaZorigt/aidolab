@@ -1,6 +1,6 @@
 {% extends "checker/base.html" %}
 {% block title %}Шинэ шалгалт · aidolab{% endblock %}
-{% block crumbs %}<a href="/">Тойм</a><span>/</span><b>Шинэ шалгалт</b>{% endblock %}
+{% block crumbs %}<a href="{% url 'dashboard' %}">Тойм</a><span>/</span><b>Шинэ шалгалт</b>{% endblock %}
 {% block style %}
   .wrap { max-width:720px; }
   .form { border:1px solid var(--line-2); padding:28px; background:var(--panel); }
@@ -9,6 +9,23 @@
   .checks li { display:flex; gap:10px; }
   .checks svg { color:var(--ok); margin-top:3px; }
   .checks-title { font-family:"JetBrains Mono", ui-monospace, monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); margin-top:40px; }
+  .repos { border:1px solid var(--line); border-radius:8px; background:var(--panel); margin-bottom:24px; overflow:hidden; }
+  .repos-head { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:14px 18px; border-bottom:1px solid var(--line); }
+  .repos-head b { font-size:15px; }
+  .repos-head .muted { font-size:13px; }
+  .repos .input { margin:12px 18px; }
+  .repo-list { max-height:360px; overflow-y:auto; border-top:1px solid var(--line); }
+  .repo { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:12px 18px; border-bottom:1px solid var(--line); }
+  .repo:last-child { border-bottom:0; }
+  .repo:hover { background:var(--hover); }
+  .repo-name { font-weight:600; font-size:14px; }
+  .repo-desc { color:var(--muted); font-size:13px; margin-top:2px; }
+  .repo-meta { color:var(--faint); font-size:12px; margin-top:4px; font-family:"JetBrains Mono", ui-monospace, monospace; }
+  .repo .btn { padding:7px 14px; }
+  .connect { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; border:1px dashed var(--line-2); border-radius:8px; padding:18px 20px; margin-bottom:24px; }
+  .connect p { margin:4px 0 0; color:var(--muted); font-size:14px; }
+  .or-line { display:flex; align-items:center; gap:12px; margin:0 0 20px; color:var(--faint); font-size:13px; }
+  .or-line::before, .or-line::after { content:""; flex:1; border-top:1px solid var(--line); }
   @media (max-width: 600px) { .checks { grid-template-columns:1fr; } .form { padding:20px; } }
 {% endblock %}
 {% block content %}
@@ -26,13 +43,45 @@
 
   {% include "checker/_scanlog.html" %}
 
+  {% if repos is not None %}
+  <div class="repos">
+    <div class="repos-head">
+      <b>Таны GitHub repo-ууд</b>
+      <span class="muted">{{ repos|length }} public repo</span>
+    </div>
+    {% if repos %}
+    <div class="input"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input type="search" id="repoSearch" placeholder="Repo хайх" autocomplete="off"></div>
+    <div class="repo-list">
+      {% for r in repos %}
+      <div class="repo" data-name="{{ r.name|lower }}">
+        <div>
+          <div class="repo-name mono">{{ r.name }}</div>
+          {% if r.description %}<div class="repo-desc">{{ r.description|truncatechars:90 }}</div>{% endif %}
+          <div class="repo-meta">{% if r.language %}{{ r.language }} · {% endif %}{{ r.pushed }}</div>
+        </div>
+        <button type="button" class="btn" data-pick="{{ r.url }}">Сонгох</button>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted" style="padding:16px 18px;margin:0">Public repo олдсонгүй, эсвэл GitHub хариу өгсөнгүй. Доор линкээ шууд оруулж болно.</p>
+    {% endif %}
+  </div>
+  <div class="or-line">эсвэл линкээр</div>
+  {% elif OAUTH.github %}
+  <div class="connect">
+    <div><b>GitHub-аа холбох</b><p>Нэг удаа холбоход repo-ууд тань энд жагсаалтаар гарч, линк хуулах шаардлагагүй болно.</p></div>
+    <a class="btn" href="{% url 'oauth_start' 'github' %}?next=/new/">GitHub холбох</a>
+  </div>
+  {% endif %}
+
   <form method="post" class="form" data-scan>
     {% csrf_token %}
     <div class="field">
       <label for="repo_url">GitHub repo-гийн линк</label>
       <div class="input">
         <svg class="i" viewBox="0 0 24 24"><path d="M9 19c-4 1.5-4-2-6-2.5M15 21v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 00-1.3-3.2 4.2 4.2 0 00-.1-3.2s-1-.3-3.4 1.3a11.5 11.5 0 00-6.2 0C6.6 2.8 5.6 3.1 5.6 3.1a4.2 4.2 0 00-.1 3.2A4.6 4.6 0 004.2 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg>
-        <input id="repo_url" name="repo_url" type="url" required placeholder="https://github.com/нэр/repo" value="{{ repo_url }}" autofocus>
+        <input id="repo_url" name="repo_url" type="url" required placeholder="https://github.com/нэр/repo" value="{{ repo_url }}"{% if repos is None %} autofocus{% endif %}>
       </div>
       <div class="help">Public repo · 50MB хүртэл</div>
     </div>
@@ -49,4 +98,18 @@
     <li><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Аюултай код (Bandit)</li>
   </ul>
 </div>
+{% endblock %}
+{% block script %}
+<script>
+  // Picking a GitHub repo fills the link and starts the scan right away.
+  document.querySelectorAll("[data-pick]").forEach(b => b.addEventListener("click", () => {
+    const form = document.querySelector("form[data-scan]");
+    form.querySelector("#repo_url").value = b.dataset.pick;
+    form.requestSubmit();
+  }));
+  document.getElementById("repoSearch")?.addEventListener("input", e => {
+    const q = e.target.value.trim().toLowerCase();
+    document.querySelectorAll(".repo").forEach(r => r.style.display = r.dataset.name.includes(q) ? "" : "none");
+  });
+</script>
 {% endblock %}
