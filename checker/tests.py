@@ -161,3 +161,28 @@ class CustomDomainTests(TestCase):
         with self.dns({(d.txt_name, "TXT"): [d.token]}):
             domains.verify(d)
         self.assertEqual(d.ssl_status, domains.SSL_ACTIVE)
+
+
+@AWS
+class TeardownTests(TestCase):
+    @mock.patch("checker.aws.client")
+    def test_only_this_apps_task_definitions_are_deleted(self, client):
+        from . import aws
+        ecs = client.return_value
+        ecs.get_paginator.return_value.paginate.side_effect = lambda **kw: [{"taskDefinitionArns": [
+            "arn:aws:ecs:r:1:task-definition/app-1:3", "arn:aws:ecs:r:1:task-definition/app-12:1"]}] \
+            if kw["status"] == "ACTIVE" else [{"taskDefinitionArns": []}]
+        aws.delete_task_definitions("app-1")
+        ecs.delete_task_definitions.assert_called_once_with(
+            taskDefinitions=["arn:aws:ecs:r:1:task-definition/app-1:3"])
+
+    @mock.patch("checker.aws.client")
+    def test_only_this_apps_images_are_deleted(self, client):
+        from . import aws
+        ecr = client.return_value
+        ecr.get_paginator.return_value.paginate.return_value = [{"imageIds": [
+            {"imageTag": "s1-1"}, {"imageTag": "s1-2"}, {"imageTag": "s12-1"}]}]
+        with override_settings(AIDOLAB={"ECR_REPO": "1.dkr.ecr.r.amazonaws.com/aidolab-apps"}):
+            aws.delete_images(1)
+        ecr.batch_delete_image.assert_called_once_with(
+            repositoryName="aidolab-apps", imageIds=[{"imageTag": "s1-1"}, {"imageTag": "s1-2"}])

@@ -43,6 +43,18 @@ resource "aws_iam_role_policy" "gateway_worker" {
         Resource = ["${aws_cloudwatch_log_group.builds.arn}:*", "${aws_cloudwatch_log_group.apps.arn}:*"]
       },
       {
+        Sid      = "CleanupAppLogs"
+        Effect   = "Allow"
+        Action   = ["logs:DescribeLogStreams", "logs:DeleteLogStream"]
+        Resource = ["${aws_cloudwatch_log_group.apps.arn}:*"]
+      },
+      {
+        Sid      = "CleanupImages"
+        Effect   = "Allow"
+        Action   = ["ecr:ListImages", "ecr:BatchDeleteImage"]
+        Resource = aws_ecr_repository.apps.arn
+      },
+      {
         Sid    = "EcsServices"
         Effect = "Allow"
         Action = ["ecs:CreateService", "ecs:UpdateService", "ecs:DeleteService", "ecs:DescribeServices",
@@ -51,9 +63,10 @@ resource "aws_iam_role_policy" "gateway_worker" {
         Condition = { ArnEquals = { "ecs:cluster" = aws_ecs_cluster.apps.arn } }
       },
       {
-        Sid      = "EcsTaskDefinitions"
-        Effect   = "Allow"
-        Action   = ["ecs:RegisterTaskDefinition", "ecs:DeregisterTaskDefinition", "ecs:DescribeTaskDefinition", "ecs:TagResource"]
+        Sid    = "EcsTaskDefinitions"
+        Effect = "Allow"
+        Action = ["ecs:RegisterTaskDefinition", "ecs:DeregisterTaskDefinition", "ecs:DescribeTaskDefinition", "ecs:TagResource",
+        "ecs:ListTaskDefinitions", "ecs:DeleteTaskDefinitions"]
         Resource = "*"
       },
       {
