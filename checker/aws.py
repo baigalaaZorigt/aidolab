@@ -18,6 +18,7 @@ import boto3
 from django.conf import settings
 
 CPU, MEMORY_MB, PORT = "256", "512", 8000
+APP_DOMAIN = "apps.aidolab.internal"  # Cloud Map namespace (infra/apps.tf); nginx proxies to <slug>.APP_DOMAIN
 
 
 def cfg(key: str) -> str:

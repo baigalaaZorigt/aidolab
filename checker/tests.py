@@ -24,9 +24,10 @@ class RealDeployTests(TestCase):
         self.assertEqual(d.state, Deploy.QUEUED)
         self.assertEqual(self.service.deploy_state, "building")
 
+    @mock.patch("checker.worker.answers_http", return_value=True)
     @mock.patch("checker.worker.time.sleep")
     @mock.patch("checker.worker.aws")
-    def test_worker_builds_and_starts(self, aws, _sleep):
+    def test_worker_builds_and_starts(self, aws, _sleep, _http):
         aws.start_build.return_value = ("build:1", "repo:s1-1")
         aws.build_state.side_effect = [("IN_PROGRESS", "s"), ("SUCCEEDED", "s")]
         aws.build_log.return_value = (["step"], "t")
@@ -54,6 +55,22 @@ class RealDeployTests(TestCase):
         d = self.service.deploys.get()
         self.assertEqual(d.status, "failed")
         aws.run.assert_not_called()
+
+    @mock.patch("checker.worker.HTTP_TIMEOUT", -1)
+    @mock.patch("checker.worker.answers_http", return_value=False)
+    @mock.patch("checker.worker.time.sleep")
+    @mock.patch("checker.worker.aws")
+    def test_running_but_silent_app_fails(self, aws, _sleep, _http):
+        aws.start_build.return_value = ("build:1", "repo:s1-1")
+        aws.build_state.return_value = ("SUCCEEDED", None)
+        aws.rollout_state.return_value = ("COMPLETED", "")
+        hosting.start_deploy(self.service)
+
+        worker.process(worker.claim_deploy())
+
+        d = self.service.deploys.get()
+        self.assertEqual(d.state, Deploy.FAILED)
+        self.assertNotIn("🎉", " ".join(line for _, line in d.logs))
 
     def test_claim_takes_each_deploy_once(self):
         hosting.start_deploy(self.service)

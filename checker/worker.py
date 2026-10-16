@@ -6,6 +6,8 @@ Between deploys it also syncs custom domains (checker/domains.py) once a minute.
 """
 import logging
 import time
+import urllib.error
+import urllib.request
 
 from django.db import transaction
 from django.utils import timezone
@@ -14,7 +16,7 @@ from . import aws, domains
 from .models import Deploy, Job
 
 log = logging.getLogger(__name__)
-BUILD_TIMEOUT, ROLLOUT_TIMEOUT = 20 * 60, 10 * 60
+BUILD_TIMEOUT, ROLLOUT_TIMEOUT, HTTP_TIMEOUT = 20 * 60, 10 * 60, 3 * 60
 DOMAIN_SYNC_EVERY = 60
 
 
@@ -71,12 +73,36 @@ def start(d: Deploy) -> None:
     while True:
         state, reason = aws.rollout_state(service)
         if state == "COMPLETED":
-            return
+            break
         if state == "FAILED":
             raise DeployFailed(f"Апп эхэлсэнгүй: {reason}. Апп {aws.PORT} порт дээр ажиллаж байгаа эсэхийг шалгана уу.")
         if time.monotonic() - started > ROLLOUT_TIMEOUT:
             raise DeployFailed("Апп эхлэхэд хэт удлаа. Logs табаас апп-ын алдааг харна уу.")
         time.sleep(5)
+    wait_http(d)
+
+
+def answers_http(url: str) -> bool:
+    try:
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            return resp.status < 500
+    except urllib.error.HTTPError as e:
+        return e.code < 500  # 404 etc. still means the app is up and listening
+    except OSError:
+        return False
+
+
+def wait_http(d: Deploy) -> None:
+    """ECS only knows the container runs; success is claimed only once the app answers like nginx will reach it."""
+    url = f"http://{d.service.slug}.{aws.APP_DOMAIN}:{aws.PORT}/"
+    d.log("==> Апп хариу өгөхийг шалгаж байна (HTTP)")
+    started = time.monotonic()
+    while not answers_http(url):
+        if time.monotonic() - started > HTTP_TIMEOUT:
+            raise DeployFailed(f"Апп ажиллаж байгаа ч {aws.PORT} порт дээр хариу өгөхгүй байна. "
+                               "Апп 0.0.0.0 хаяг, PORT хувьсагч дээр сонсож байгаа эсэхийг шалгана уу.")
+        time.sleep(5)
+    d.log("==> HTTP хариу ирлээ ✓")
 
 
 def process(d: Deploy) -> None:

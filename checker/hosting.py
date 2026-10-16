@@ -36,10 +36,9 @@ def deploy_logs(service: Service, number: int, trigger: str) -> list:
         [12, "    Сангууд амжилттай суулаа"],
         [14, f"==> Image бүтээж байна: aidolab/{service.slug}:{number}"],
         [18, env_line],
-        [20, "==> gunicorn эхлүүлж байна"],
-        [21, "    [INFO] Listening at: http://0.0.0.0:8000"],
-        [23, "==> Health check амжилттай ✓"],
-        [DEPLOY_SECONDS - 1, f"==> Таны апп ажиллаж байна 🎉 {service.url}"],
+        # Demo never starts the app, so the log must not claim it is reachable.
+        [20, "==> ТУРШИЛТЫН ГОРИМ: апп бодитоор эхлүүлээгүй"],
+        [DEPLOY_SECONDS - 1, f"==> Шалгалт, бэлтгэл дууслаа. {service.url} хаяг бодит hosting идэвхжсэний дараа ажиллана."],
     ]
 
 
