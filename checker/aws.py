@@ -150,7 +150,7 @@ def register_task(service, image: str, secrets: list[dict], role_arn: str) -> st
                 "awslogs-group": cfg("APP_LOG_GROUP"), "awslogs-region": settings.AWS_REGION,
                 "awslogs-stream-prefix": name}},
         }],
-        tags=[{"Key": "Project", "Value": "aidolab"}],
+        tags=[{"key": "Project", "value": "aidolab"}],  # ECS uses lowercase tag keys
     )["taskDefinition"]["taskDefinitionArn"]
 
 

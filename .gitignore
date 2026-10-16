@@ -9,3 +9,5 @@ infra/.terraform/
 infra/*.tfstate*
 infra/terraform.tfvars
 infra/tfplan
+infra/tfplan*
+infra/apply.log
