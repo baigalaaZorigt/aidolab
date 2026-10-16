@@ -59,6 +59,15 @@ resource "aws_route53_record" "apps_wildcard" {
   records = [aws_eip.gateway.public_ip]
 }
 
+# Company landing page (www is covered by the wildcard above). nginx: deploy/nginx-site.conf.
+resource "aws_route53_record" "site" {
+  zone_id = data.aws_route53_zone.platform.zone_id
+  name    = var.domain
+  type    = "A"
+  ttl     = 300
+  records = [aws_eip.gateway.public_ip]
+}
+
 # Dashboard. The record was created by hand for the first gateway; cutover takes it over.
 resource "aws_route53_record" "dashboard" {
   count           = var.cutover ? 1 : 0

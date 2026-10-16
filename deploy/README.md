@@ -33,6 +33,7 @@ sudo REPO_URL=https://github.com/baigalaaZorigt/aidolab.git bash bootstrap.sh
 sudo nano /etc/aidolab/env        # ANTHROPIC_API_KEY, ACCESS_CODE бөглөнө
 # Заавал биш: GitHub/Google-ээр нэвтрэх (байхгүй бол товч нь нуугдана)
 #   GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET  — GitHub OAuth App, callback: https://app.aidolab.mn/oauth/github/callback/
+# ALLOWED_HOSTS-д aidolab.mn нэмнэ (компанийн нүүр хуудас, deploy/nginx-site.conf)
 #   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET  — Google OAuth client, redirect: https://app.aidolab.mn/oauth/google/callback/
 sudo bash /srv/aidolab/app/deploy/update.sh
 ```

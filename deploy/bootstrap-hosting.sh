@@ -17,6 +17,15 @@ if [ ! -d /etc/letsencrypt/live/aidolab.mn-wildcard ]; then
     --deploy-hook 'systemctl reload nginx'
 fi
 
+# Company landing page on aidolab.mn + www (DNS-01, so it works before the A record exists).
+if [ ! -d /etc/letsencrypt/live/aidolab.mn-site ]; then
+  certbot certonly --dns-route53 --cert-name aidolab.mn-site -d aidolab.mn -d www.aidolab.mn \
+    --non-interactive --agree-tos --register-unsafely-without-email \
+    --deploy-hook 'systemctl reload nginx'
+fi
+install -m 644 "$APP/deploy/nginx-site.conf" /etc/nginx/sites-available/aidolab-site
+ln -sf /etc/nginx/sites-available/aidolab-site /etc/nginx/sites-enabled/aidolab-site
+
 install -m 644 "$APP/deploy/nginx-app-proxy.conf" /etc/nginx/snippets/aidolab-app-proxy.conf
 install -d -m 755 /etc/nginx/aidolab-domains /var/www/letsencrypt
 install -d -o aidolab -g aidolab -m 755 /srv/aidolab/data/domains
