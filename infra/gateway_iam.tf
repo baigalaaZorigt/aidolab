@@ -20,6 +20,8 @@ resource "aws_iam_role_policy_attachment" "gateway_ssm" {
 
 locals {
   app_role_arns = "arn:aws:iam::${local.account}:role${local.role_path}*"
+  # IAM checks a role that doesn't exist yet against its ARN without the path.
+  app_role_arns_any_path = [local.app_role_arns, "arn:aws:iam::${local.account}:role/aidolab-app-*"]
 }
 
 resource "aws_iam_role_policy" "gateway_worker" {
@@ -65,14 +67,14 @@ resource "aws_iam_role_policy" "gateway_worker" {
         Sid       = "AppRolesWithBoundary"
         Effect    = "Allow"
         Action    = ["iam:CreateRole", "iam:PutRolePolicy"]
-        Resource  = local.app_role_arns
+        Resource  = local.app_role_arns_any_path
         Condition = { StringEquals = { "iam:PermissionsBoundary" = aws_iam_policy.app_boundary.arn } }
       },
       {
         Sid      = "AppRolesCleanup"
         Effect   = "Allow"
         Action   = ["iam:GetRole", "iam:DeleteRole", "iam:DeleteRolePolicy", "iam:TagRole"]
-        Resource = local.app_role_arns
+        Resource = local.app_role_arns_any_path
       },
       {
         Sid    = "ServiceDiscovery"
