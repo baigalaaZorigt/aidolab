@@ -1,0 +1,10 @@
+[Unit]
+Description=aidolab custom domains (certificates + nginx)
+After=network-online.target nginx.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Root-owned copy: /srv/aidolab/app is writable by the aidolab user.
+ExecStart=/usr/bin/python3 /usr/local/lib/aidolab/sync-domains.py
+TimeoutStartSec=30min

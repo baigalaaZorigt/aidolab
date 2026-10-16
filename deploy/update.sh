@@ -16,6 +16,9 @@ as_app "$HOME_DIR/venv/bin/python" manage.py migrate --noinput
 as_app "$HOME_DIR/venv/bin/python" manage.py collectstatic --noinput -v0
 as_app "$HOME_DIR/venv/bin/python" manage.py check --deploy --fail-level ERROR
 systemctl restart aidolab
-systemctl is-enabled --quiet aidolab-worker 2>/dev/null && systemctl restart aidolab-worker
+if systemctl is-enabled --quiet aidolab-worker 2>/dev/null; then
+  bash "$APP/deploy/bootstrap-hosting.sh"  # idempotent: refreshes nginx snippets, units, sync-domains.py
+  systemctl restart aidolab-worker
+fi
 nginx -t && systemctl reload nginx
 echo "Шинэчлэгдлээ: https://app.aidolab.mn"

@@ -2,6 +2,7 @@
 
 One deploy at a time: CodeBuild image → SSM params → task role → ECS service → wait for rollout.
 Progress goes into Deploy.logs, which the Logs tab polls.
+Between deploys it also syncs custom domains (checker/domains.py) once a minute.
 """
 import logging
 import time
@@ -9,11 +10,12 @@ import time
 from django.db import transaction
 from django.utils import timezone
 
-from . import aws
+from . import aws, domains
 from .models import Deploy, Job
 
 log = logging.getLogger(__name__)
 BUILD_TIMEOUT, ROLLOUT_TIMEOUT = 20 * 60, 10 * 60
+DOMAIN_SYNC_EVERY = 60
 
 
 class DeployFailed(Exception):
@@ -137,9 +139,20 @@ def recover() -> None:
         fail(d, "Сервер дахин эхэлсэн тул deploy тасарлаа. Дахин deploy хийнэ үү.")
 
 
+def sync_domains() -> None:
+    try:
+        domains.sync()
+    except Exception:  # DNS/network trouble must not stop deploys
+        log.exception("domain sync failed")
+
+
 def loop() -> None:
     recover()
+    last_sync = 0.0
     while True:
+        if time.monotonic() - last_sync > DOMAIN_SYNC_EVERY:
+            sync_domains()
+            last_sync = time.monotonic()
         d = claim_deploy()
         if d:
             process(d)

@@ -33,7 +33,9 @@
     <div class="box-head">
       <div class="domain-name">
         <span class="mono">{{ d.domain }}</span>
-        {% if d.status == "verified" %}<span class="chip ready" style="font-size:13px"><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Баталгаажсан</span><span class="chip ready" style="font-size:13px"><svg class="i" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>SSL идэвхтэй</span>
+        {% if d.status == "verified" %}<span class="chip ready" style="font-size:13px"><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Баталгаажсан</span>{% if d.ssl_status == "active" or d.ssl_status == "" and not real %}<span class="chip ready" style="font-size:13px"><svg class="i" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>SSL идэвхтэй</span>
+          {% elif d.ssl_status == "error" %}<span class="chip risk" style="font-size:13px"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>SSL алдаа</span>
+          {% else %}<span class="chip warn" style="font-size:13px"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>SSL хүлээж байна</span>{% endif %}
         {% elif d.status == "failed" %}<span class="chip risk" style="font-size:13px"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>Баталгаажаагүй</span>
         {% else %}<span class="chip warn" style="font-size:13px"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>DNS хүлээж байна</span>{% endif %}
       </div>
@@ -48,7 +50,14 @@
     </div>
     <div class="box-body">
       {% if d.status == "verified" %}
-        <p style="margin:0">Домэйн баталгаажлаа. SSL сертификат автоматаар үүсч, <span class="mono">https://{{ d.domain }}</span> хаягаар нээгдэнэ.</p>
+        {% if d.ssl_status == "active" or d.ssl_status == "" and not real %}
+        <p style="margin:0">Домэйн ажиллаж байна: <a class="link mono" href="https://{{ d.domain }}" target="_blank" rel="noopener">https://{{ d.domain }}</a></p>
+        {% elif d.ssl_status == "error" %}
+        <p style="margin:0">SSL сертификат авч чадсангүй. Чиглүүлэх бичлэг (доорх {% if d.is_apex %}A{% else %}CNAME{% endif %}) зөв эсэхийг шалгана уу. Систем 30 минут тутам дахин оролдоно.</p>
+        {% if d.ssl_error %}<pre class="mono" style="white-space:pre-wrap;font-size:12px;margin:10px 0 0">{{ d.ssl_error }}</pre>{% endif %}
+        {% else %}
+        <p style="margin:0">Эзэмшил баталгаажлаа. Доорх {% if d.is_apex %}A{% else %}CNAME{% endif %} бичлэг манай сервер рүү заамагц SSL сертификат автоматаар үүснэ (хэдэн минут).</p>
+        {% endif %}
       {% else %}
         <p style="margin:0">Домэйнээ бүртгүүлсэн газар (DNS удирдлага) руугаа орж дараах бичлэгүүдийг нэмнэ үү. Утга дээр дарвал хуулагдана.</p>
       {% endif %}
@@ -81,6 +90,7 @@
       <ul class="steps">
         <li>DNS шинэчлэгдэхэд хэдэн минутаас 48 цаг хүртэл болно.</li>
         <li>Cloudflare ашигладаг бол бичлэгийг "DNS only" (саарал үүл) болгоно.</li>
+        <li>Апп чинь хандах хаягийг шалгадаг бол (Django <span class="mono">ALLOWED_HOSTS</span>) энэ домэйнийг нэмнэ үү.</li>
         {% if d.last_checked_at %}<li>Сүүлд шалгасан: {{ d.last_checked_at|date:"Y-m-d H:i" }}</li>{% endif %}
       </ul>
     </div>

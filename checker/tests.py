@@ -1,10 +1,13 @@
+import json
+import tempfile
+from pathlib import Path
 from unittest import mock
 
 from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 
-from . import hosting, worker
-from .models import Deploy, EnvVar, Job, Service
+from . import domains, hosting, worker
+from .models import CustomDomain, Deploy, EnvVar, Job, Service
 
 AWS = override_settings(HOSTING_BACKEND="aws", AIDOLAB={"FILES_BUCKET": "files"})
 
@@ -81,3 +84,63 @@ class DemoDeployTests(TestCase):
         d = hosting.start_deploy(service)
         self.assertFalse(d.is_real)
         self.assertEqual(d.status, "building")
+
+
+@AWS
+class CustomDomainTests(TestCase):
+    def setUp(self):
+        user = User.objects.create_user("a@example.com", password="x")
+        self.service = Service.objects.create(owner=user, name="shop", slug="shop-app",
+                                              repo_url="https://github.com/x/shop", score=90)
+        self.tmp = Path(tempfile.mkdtemp())
+        paths = override_settings(DOMAINS_DIR=self.tmp / "domains", DOMAINS_STATUS=self.tmp / "status.json",
+                                  GATEWAY_IP="198.51.100.7")
+        paths.enable()
+        self.addCleanup(paths.disable)
+
+    def dns(self, answers):
+        return mock.patch("checker.domains.dns_lookup", side_effect=lambda name, rtype: answers.get((name, rtype), []))
+
+    def wanted(self):
+        return (self.tmp / "domains" / "wanted").read_text()
+
+    def test_txt_verification_waits_for_ssl(self):
+        d = CustomDomain.objects.create(service=self.service, domain="www.shop.mn")
+        with self.dns({(d.txt_name, "TXT"): [d.token]}):
+            domains.verify(d)
+        self.assertEqual((d.status, d.ssl_status), (CustomDomain.VERIFIED, domains.SSL_PENDING))
+
+    def test_only_domains_pointing_here_are_wanted(self):
+        here = CustomDomain.objects.create(service=self.service, domain="www.shop.mn", status="verified")
+        CustomDomain.objects.create(service=self.service, domain="old.shop.mn", status="verified")
+        with self.dns({(here.domain, "A"): ["198.51.100.7"]}):
+            domains.sync()
+        self.assertEqual(self.wanted(), "www.shop.mn shop-app\n")
+
+    def test_pending_txt_is_rechecked_automatically(self):
+        d = CustomDomain.objects.create(service=self.service, domain="www.shop.mn")
+        with self.dns({(d.txt_name, "TXT"): [d.token], (d.domain, "A"): ["198.51.100.7"]}):
+            domains.sync()
+        d.refresh_from_db()
+        self.assertEqual(d.status, CustomDomain.VERIFIED)
+
+    def test_root_status_is_shown(self):
+        ok = CustomDomain.objects.create(service=self.service, domain="www.shop.mn", status="verified",
+                                         ssl_status="pending")
+        bad = CustomDomain.objects.create(service=self.service, domain="shop.mn", status="verified",
+                                          ssl_status="pending")
+        (self.tmp / "status.json").write_text(json.dumps({
+            "www.shop.mn": {"ok": True}, "shop.mn": {"ok": False, "error": "Timeout during connect"}}))
+        with self.dns({}):
+            domains.sync()
+        ok.refresh_from_db(), bad.refresh_from_db()
+        self.assertEqual(ok.ssl_status, domains.SSL_ACTIVE)
+        self.assertEqual((bad.ssl_status, bad.ssl_error), (domains.SSL_ERROR, "Timeout during connect"))
+        self.assertEqual(self.wanted(), "www.shop.mn shop-app\n")  # active stays even without DNS answer
+
+    @override_settings(HOSTING_BACKEND="demo")
+    def test_demo_verification_is_active_at_once(self):
+        d = CustomDomain.objects.create(service=self.service, domain="www.shop.mn")
+        with self.dns({(d.txt_name, "TXT"): [d.token]}):
+            domains.verify(d)
+        self.assertEqual(d.ssl_status, domains.SSL_ACTIVE)

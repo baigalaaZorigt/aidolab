@@ -68,6 +68,10 @@ AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
 AIDOLAB = {key.removeprefix("AIDOLAB_"): value for key, value in os.environ.items() if key.startswith("AIDOLAB_")}
 # Elastic IP of the gateway; customers point apex domains here. 203.0.113.0/24 is a documentation range.
 GATEWAY_IP = os.environ.get("GATEWAY_IP", "203.0.113.10")
+# Custom domains (real hosting): the worker writes the wanted list here, root's
+# deploy/sync-domains.py issues certificates and reports back (see deploy/README.md).
+DOMAINS_DIR = Path(os.environ.get("DOMAINS_DIR", "/srv/aidolab/data/domains"))
+DOMAINS_STATUS = Path(os.environ.get("DOMAINS_STATUS", "/srv/aidolab/data/domains-status.json"))
 
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/"

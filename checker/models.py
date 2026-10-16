@@ -119,6 +119,9 @@ class CustomDomain(models.Model):
     domain = models.CharField(max_length=253, unique=True)
     token = models.CharField(max_length=64, default=secrets.token_hex)
     status = models.CharField(max_length=10, default=PENDING)
+    # Real hosting only: certificate state reported by deploy/sync-domains.py ("" until TXT is verified).
+    ssl_status = models.CharField(max_length=10, blank=True, default="")
+    ssl_error = models.CharField(max_length=300, blank=True, default="")
     last_checked_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

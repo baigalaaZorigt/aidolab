@@ -1,0 +1,10 @@
+[Unit]
+Description=Run aidolab-domains when the worker changes the wanted list
+
+[Path]
+# The worker replaces the file atomically (rename), so watch the directory.
+PathChanged=/srv/aidolab/data/domains
+Unit=aidolab-domains.service
+
+[Install]
+WantedBy=multi-user.target

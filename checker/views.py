@@ -8,11 +8,11 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from . import hosting
+from . import domains, hosting
 from .ai import explain
 from .audit import audit
 from .models import CustomDomain, EnvVar, ScanRun, Service, profile_for
-from .naming import dns_lookup, domain_error, normalize_domain, slug_error, slug_from_repo
+from .naming import domain_error, normalize_domain, slug_error, slug_from_repo
 from .plans import get_plan
 from .scanner import ScanError, scan_repo
 
@@ -237,17 +237,6 @@ def service_env(request, pk):
     })
 
 
-def verify_domain(domain: CustomDomain) -> None:
-    records = dns_lookup(domain.txt_name, "TXT")
-    if records is not None:
-        if domain.token in records:
-            domain.status = CustomDomain.VERIFIED
-        elif timezone.now() - domain.created_at > timezone.timedelta(hours=48):
-            domain.status = CustomDomain.FAILED
-    domain.last_checked_at = timezone.now()
-    domain.save()
-
-
 @login_required
 def service_domains(request, pk):
     service = own_service(request, pk)
@@ -272,10 +261,10 @@ def service_domains(request, pk):
         else:
             domain = get_object_or_404(CustomDomain, pk=request.POST.get("domain_id"), service=service)
             if action == "verify":
-                verify_domain(domain)
+                domains.verify(domain)
                 if domain.status == CustomDomain.VERIFIED:
                     messages.success(request, f"{domain.domain} баталгаажлаа.")
-                    audit(request, "domain", f"{domain.domain} домэйн баталгаажиж SSL идэвхжив", service)
+                    audit(request, "domain", f"{domain.domain} домэйн баталгаажлаа", service)
                 else:
                     messages.error(request, "TXT бичлэг одоогоор олдсонгүй. DNS шинэчлэгдэхэд хэдэн минутаас 48 цаг хүртэл болно.")
             elif action == "delete":
@@ -285,7 +274,7 @@ def service_domains(request, pk):
         return redirect("service_domains", pk=service.pk)
     return render(request, "checker/service_domains.html", {
         "service": service, "domains": service.domains.all(), "limit": limit, "tab": "domains",
-        "gateway_ip": hosting.gateway_ip(),
+        "gateway_ip": hosting.gateway_ip(), "real": hosting.is_aws(),
     })
 
 
