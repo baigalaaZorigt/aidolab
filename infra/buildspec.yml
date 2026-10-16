@@ -1,0 +1,48 @@
+# Runs in a throwaway CodeBuild machine. Inputs (env): REPO_URL, IMAGE_TAG, ECR_REPO.
+# If the repo has no Dockerfile we generate one for a Python web app listening on $PORT (8000).
+version: 0.2
+phases:
+  pre_build:
+    commands:
+      - echo "==> Repo татаж байна $REPO_URL"
+      - git -c core.symlinks=false clone --depth 1 "$REPO_URL" app
+      - aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "${ECR_REPO%%/*}"
+  build:
+    commands:
+      - cd app
+      - |
+        if [ -f Dockerfile ]; then
+          echo "==> Repo-гийн Dockerfile ашиглана"
+        else
+          if [ -f Procfile ] && grep -q '^web:' Procfile; then
+            START=$(grep '^web:' Procfile | head -1 | sed 's/^web:[[:space:]]*//')
+          elif WSGI=$(find . -name wsgi.py -not -path './.venv/*' -not -path './venv/*' | head -1) && [ -n "$WSGI" ]; then
+            MOD=$(echo "${WSGI#./}" | sed 's/\.py$//; s#/#.#g')
+            START="gunicorn $MOD:application --bind 0.0.0.0:\$PORT --workers 2"
+          elif [ -f main.py ] && grep -qi fastapi requirements.txt 2>/dev/null; then
+            START="uvicorn main:app --host 0.0.0.0 --port \$PORT"
+          elif [ -f app.py ]; then
+            START="gunicorn app:app --bind 0.0.0.0:\$PORT --workers 2"
+          else
+            echo "!! Эхлүүлэх команд олдсонгүй. Procfile-д 'web: ...' мөр нэмнэ үү."; exit 1
+          fi
+          echo "==> Эхлүүлэх команд: $START"
+          {
+            echo 'FROM public.ecr.aws/docker/library/python:3.12-slim'
+            echo 'ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PORT=8000'
+            echo 'WORKDIR /app'
+            echo 'COPY . .'
+            echo 'RUN if [ -f requirements.txt ]; then pip install -r requirements.txt; fi && pip install gunicorn uvicorn'
+            echo 'RUN useradd --create-home app && chown -R app /app'
+            echo 'USER app'
+            echo 'EXPOSE 8000'
+            echo "CMD [\"sh\", \"-c\", \"$START\"]"
+          } > Dockerfile
+        fi
+      - echo "==> Image бүтээж байна $IMAGE_TAG"
+      - docker build -t "$ECR_REPO:$IMAGE_TAG" .
+  post_build:
+    commands:
+      - test "$CODEBUILD_BUILD_SUCCEEDING" = "1"
+      - docker push "$ECR_REPO:$IMAGE_TAG"
+      - echo "==> Image бэлэн"
