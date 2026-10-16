@@ -112,3 +112,73 @@ aws_route53_record.apps_wildcard: Still creating... [00m20s elapsed]
 aws_db_instance.main: Still creating... [00m40s elapsed]
 aws_route53_record.apps_wildcard: Still creating... [00m30s elapsed]
 aws_db_instance.main: Still creating... [00m50s elapsed]
+aws_route53_record.apps_wildcard: Still creating... [00m40s elapsed]
+aws_db_instance.main: Still creating... [01m00s elapsed]
+aws_route53_record.apps_wildcard: Creation complete after 48s [id=Z008123646G6GAYQ2F4B_*.aidolab.mn_A]
+aws_db_instance.main: Still creating... [01m10s elapsed]
+aws_db_instance.main: Still creating... [01m20s elapsed]
+aws_db_instance.main: Still creating... [01m30s elapsed]
+aws_db_instance.main: Still creating... [01m40s elapsed]
+aws_db_instance.main: Still creating... [01m50s elapsed]
+aws_db_instance.main: Still creating... [02m00s elapsed]
+aws_db_instance.main: Still creating... [02m10s elapsed]
+aws_db_instance.main: Still creating... [02m20s elapsed]
+aws_db_instance.main: Still creating... [02m30s elapsed]
+aws_db_instance.main: Still creating... [02m40s elapsed]
+aws_db_instance.main: Still creating... [02m50s elapsed]
+aws_db_instance.main: Still creating... [03m00s elapsed]
+aws_db_instance.main: Still creating... [03m10s elapsed]
+aws_db_instance.main: Still creating... [03m20s elapsed]
+aws_db_instance.main: Still creating... [03m30s elapsed]
+aws_db_instance.main: Still creating... [03m40s elapsed]
+aws_db_instance.main: Still creating... [03m50s elapsed]
+aws_db_instance.main: Still creating... [04m00s elapsed]
+aws_db_instance.main: Still creating... [04m10s elapsed]
+aws_db_instance.main: Still creating... [04m20s elapsed]
+aws_db_instance.main: Still creating... [04m30s elapsed]
+aws_db_instance.main: Still creating... [04m40s elapsed]
+aws_db_instance.main: Still creating... [04m50s elapsed]
+aws_db_instance.main: Still creating... [05m00s elapsed]
+aws_db_instance.main: Still creating... [05m10s elapsed]
+aws_db_instance.main: Still creating... [05m20s elapsed]
+aws_db_instance.main: Still creating... [05m30s elapsed]
+aws_db_instance.main: Still creating... [05m40s elapsed]
+aws_db_instance.main: Still creating... [05m50s elapsed]
+aws_db_instance.main: Still creating... [06m00s elapsed]
+aws_db_instance.main: Still creating... [06m10s elapsed]
+aws_db_instance.main: Creation complete after 6m11s [id=db-ZBAKDNF7MEEMLH3QFVUKFN2STM]
+aws_iam_role_policy.gateway_worker: Creating...
+aws_cloudwatch_metric_alarm.db_cpu: Creating...
+aws_cloudwatch_metric_alarm.db_storage: Creating...
+aws_cloudwatch_metric_alarm.db_storage: Creation complete after 1s [id=aidolab-db-storage]
+aws_cloudwatch_metric_alarm.db_cpu: Creation complete after 1s [id=aidolab-db-cpu]
+aws_iam_role_policy.gateway_worker: Creation complete after 2s [id=aidolab-gw:deploy-worker]
+
+Apply complete! Resources: 53 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+gateway_env = <<EOT
+HOSTING_BACKEND=aws
+AWS_REGION=ap-northeast-1
+GATEWAY_IP=54.95.177.152
+AIDOLAB_CLUSTER=aidolab
+AIDOLAB_SUBNETS=subnet-0922a4af99b547449,subnet-0ab39bff0cfdf8b7e
+AIDOLAB_APP_SG=sg-01230d5a2417dd2ff
+AIDOLAB_BUILD_PROJECT=aidolab-build
+AIDOLAB_ECR_REPO=247673029527.dkr.ecr.ap-northeast-1.amazonaws.com/aidolab-apps
+AIDOLAB_APP_LOG_GROUP=/aidolab/apps
+AIDOLAB_BUILD_LOG_GROUP=/aidolab/builds
+AIDOLAB_EXEC_ROLE_ARN=arn:aws:iam::247673029527:role/aidolab-task-execution
+AIDOLAB_APP_ROLE_PATH=/aidolab/apps/
+AIDOLAB_APP_BOUNDARY_ARN=arn:aws:iam::247673029527:policy/aidolab-app-boundary
+AIDOLAB_FILES_BUCKET=aidolab-files-247673029527
+AIDOLAB_NAMESPACE_ID=ns-y6eggtuqctp4yzah
+AIDOLAB_APP_DOMAIN=apps.aidolab.internal
+AIDOLAB_SSM_PREFIX=/aidolab/apps
+AIDOLAB_DB_HOST=aidolab-db.cbi4u6002qy8.ap-northeast-1.rds.amazonaws.com
+AIDOLAB_DB_ADMIN_SECRET_ARN=arn:aws:secretsmanager:ap-northeast-1:247673029527:secret:rds!db-035449d5-6d02-4634-8358-8602cc55ecf9-nMG7UN
+
+EOT
+gateway_ip = "54.95.177.152"
+exit=0
