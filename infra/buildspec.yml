@@ -19,6 +19,9 @@ phases:
           elif WSGI=$(find . -name wsgi.py -not -path './.venv/*' -not -path './venv/*' | head -1) && [ -n "$WSGI" ]; then
             MOD=$(echo "${WSGI#./}" | sed 's/\.py$//; s#/#.#g')
             START="gunicorn $MOD:application --bind 0.0.0.0:\$PORT --workers 2"
+          elif grep -qi '^streamlit' requirements.txt 2>/dev/null \
+               && ST=$(grep -l 'import streamlit' streamlit_app.py app.py main.py *.py 2>/dev/null | head -1) && [ -n "$ST" ]; then
+            START="streamlit run $ST --server.port \$PORT --server.address 0.0.0.0 --server.headless true --browser.gatherUsageStats false"
           elif [ -f main.py ] && grep -qi fastapi requirements.txt 2>/dev/null; then
             START="uvicorn main:app --host 0.0.0.0 --port \$PORT"
           elif [ -f app.py ]; then
