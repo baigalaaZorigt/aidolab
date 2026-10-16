@@ -1,7 +1,8 @@
-"""Simulated hosting (demo mode): deploy logs, databases and buckets are records only.
+"""Hosting actions used by the views.
 
-Real provisioning (ECS, RDS, S3) replaces these functions when hosting goes live;
-see HOSTING_PLAN.md.
+HOSTING_BACKEND=demo: deploys, databases and buckets are records only (simulated logs/metrics).
+HOSTING_BACKEND=aws: the same records drive real resources — checker/aws.py does the AWS calls,
+checker/worker.py runs deploys and cleanup in the background.
 """
 import math
 import random
@@ -10,10 +11,14 @@ import re
 from django.conf import settings
 from django.utils import timezone
 
-from .models import DEPLOY_SECONDS, Bucket, Database, Deploy, Service
+from .models import DEPLOY_SECONDS, Bucket, Database, Deploy, Job, Service
 from .plans import get_plan
 
 MIN_DEPLOY_SCORE = 80
+
+
+def is_aws() -> bool:
+    return settings.HOSTING_BACKEND == "aws"
 
 
 def deploy_logs(service: Service, number: int, trigger: str) -> list:
@@ -51,13 +56,55 @@ def start_deploy(service: Service, trigger: str = "manual") -> Deploy:
     number = (service.deploys.count() or 0) + 1
     service.suspended = False
     service.save(update_fields=["suspended"])
+    if is_aws():
+        # Rollback = rebuild the same repo; image reuse comes later.
+        return Deploy.objects.create(service=service, number=number, trigger=trigger, score=service.score,
+                                     state=Deploy.QUEUED, duration=0,
+                                     logs=[[0, f"==> #{number} Deploy дараалалд орлоо · {service.repo_url}"],
+                                           [0, f"==> Аюулгүй байдлын шалгалт: {service.score}/100 ✓"]])
     return Deploy.objects.create(service=service, number=number, trigger=trigger, score=service.score,
                                  logs=deploy_logs(service, number, trigger))
 
 
+def set_suspended(service: Service, suspended: bool) -> None:
+    service.suspended = suspended
+    service.save(update_fields=["suspended"])
+    if is_aws():
+        from . import aws
+        aws.scale(service, 0 if suspended else 1)
+
+
+def delete_service(service: Service) -> None:
+    """Remove the record now; AWS resources are torn down by the worker (retries until clean)."""
+    if is_aws():
+        db = getattr(service, "database", None)
+        Job.objects.create(kind="teardown", payload={
+            "pk": service.pk, "slug": service.slug, "files": hasattr(service, "bucket"),
+            "database": [db.name, db.username] if db else None})
+    service.delete()
+
+
+def delete_database(service: Service) -> None:
+    db = service.database
+    if is_aws():
+        Job.objects.create(kind="drop_database", payload={"name": db.name, "username": db.username})
+    db.delete()
+
+
+def delete_bucket(service: Service) -> None:
+    if is_aws():
+        Job.objects.create(kind="delete_files", payload={"prefix": service.bucket.prefix})
+    service.bucket.delete()
+
+
 def create_database(service: Service) -> Database:
     base = re.sub(r"[^a-z0-9]", "_", service.slug)
-    return Database.objects.create(service=service, name=f"db_{base}", username=f"u_{base}")
+    db = Database(service=service, name=f"db_{base}", username=f"u_{base}")
+    if is_aws():
+        from . import aws
+        aws.create_database(db.name, db.username, db.password)
+    db.save()
+    return db
 
 
 def create_bucket(service: Service) -> Bucket:
@@ -71,6 +118,13 @@ def allocate_ip(user) -> str:
 
 def gateway_ip() -> str:
     return settings.GATEWAY_IP
+
+
+def app_log(service: Service) -> list[str] | None:
+    if not is_aws() or service.latest_deploy is None:
+        return None
+    from . import aws
+    return aws.app_log(service)
 
 
 # --- Metrics (simulated) -------------------------------------------------------
@@ -91,6 +145,8 @@ def _traffic_factor(local_hour: float) -> float:
 
 
 def metrics(service: Service, range_key: str) -> dict | None:
+    if is_aws():
+        return real_metrics(service, range_key)
     first = service.deploys.order_by("started_at").first()
     if first is None:
         return None
@@ -128,4 +184,30 @@ def metrics(service: Service, range_key: str) -> dict | None:
     }
     return {"labels": labels, "rpm": rpm, "cpu": cpu, "mem": mem, "p50": p50, "p95": p95, "bw": bw,
             "summary": summary, "has_data": bool(live), "memory_limit": MEMORY_LIMIT_MB,
+            "bucket_label": {60: "минут", 900: "15 минут", 7200: "2 цаг"}[step]}
+
+
+def real_metrics(service: Service, range_key: str) -> dict | None:
+    """CPU and memory from CloudWatch. Request/latency series need nginx access-log parsing (later)."""
+    if not service.deploys.filter(state=Deploy.LIVE).exists():
+        return None
+    from . import aws
+    cfg = METRIC_RANGES[range_key]
+    step = cfg["step"]
+    end = int(timezone.now().timestamp()) // step * step
+    times = list(range(end - cfg["span"] + step, end + step, step))
+    data = aws.cpu_memory(service, timezone.datetime.fromtimestamp(times[0], tz=timezone.UTC),
+                          timezone.datetime.fromtimestamp(end + step, tz=timezone.UTC), step)
+    labels = [timezone.localtime(timezone.datetime.fromtimestamp(t, tz=timezone.UTC)).strftime(cfg["fmt"]) for t in times]
+    cpu = [data["cpu"].get(t) for t in times]
+    mem = [data["mem"].get(t) for t in times]
+    empty = [None] * len(times)
+
+    def avg(values):
+        vals = [v for v in values if v is not None]
+        return round(sum(vals) / len(vals), 1) if vals else 0
+
+    return {"labels": labels, "rpm": empty, "cpu": cpu, "mem": mem, "p50": empty, "p95": empty, "bw": empty,
+            "summary": {"cpu": avg(cpu), "mem": round(avg(mem)), "p95": 0, "requests": 0, "bandwidth": 0},
+            "has_data": any(v is not None for v in cpu), "memory_limit": MEMORY_LIMIT_MB,
             "bucket_label": {60: "минут", 900: "15 минут", 7200: "2 цаг"}[step]}

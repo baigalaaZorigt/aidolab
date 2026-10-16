@@ -1,0 +1,148 @@
+"""Deploy worker (HOSTING_BACKEND=aws). Runs as its own process: `manage.py run_worker`.
+
+One deploy at a time: CodeBuild image → SSM params → task role → ECS service → wait for rollout.
+Progress goes into Deploy.logs, which the Logs tab polls.
+"""
+import logging
+import time
+
+from django.db import transaction
+from django.utils import timezone
+
+from . import aws
+from .models import Deploy, Job
+
+log = logging.getLogger(__name__)
+BUILD_TIMEOUT, ROLLOUT_TIMEOUT = 20 * 60, 10 * 60
+
+
+class DeployFailed(Exception):
+    pass
+
+
+def app_env(service) -> dict[str, str]:
+    values = {v.key: v.value for v in service.env_vars.all()}
+    if hasattr(service, "database"):
+        values["DATABASE_URL"] = service.database.url
+    if hasattr(service, "bucket"):
+        values["S3_BUCKET"] = aws.cfg("FILES_BUCKET")
+        values["S3_PREFIX"] = service.bucket.prefix
+    return values
+
+
+def build(d: Deploy) -> None:
+    d.state = Deploy.BUILDING
+    d.build_id, d.image = aws.start_build(d.service, d.number)
+    d.save(update_fields=["state", "build_id", "image"])
+    d.log("==> Image бүтээж эхэллээ (CodeBuild)")
+    token, started = None, time.monotonic()
+    while True:
+        status, stream = aws.build_state(d.build_id)
+        if stream:
+            lines, token = aws.build_log(stream, token)
+            for line in lines:
+                d.logs.append([d.elapsed, line])
+            if lines:
+                d.save(update_fields=["logs"])
+        if status == "SUCCEEDED":
+            return
+        if status != "IN_PROGRESS":
+            raise DeployFailed("Image бүтээж чадсангүй. Дээрх log-оос алдааг харна уу.")
+        if time.monotonic() - started > BUILD_TIMEOUT:
+            raise DeployFailed("Image бүтээхэд хэт удлаа.")
+        time.sleep(5)
+
+
+def start(d: Deploy) -> None:
+    service = d.service
+    d.state = Deploy.STARTING
+    d.save(update_fields=["state"])
+    env = app_env(service)
+    d.log(f"==> Орчны хувьсагч: {len(env)} ширхэг")
+    secrets = aws.sync_params(service, env)
+    role = aws.ensure_task_role(service)
+    registry = aws.ensure_registry(service)
+    task = aws.register_task(service, d.image, secrets, role)
+    aws.run(service, task, registry)
+    d.log("==> Апп-ыг эхлүүлж байна (ECS Fargate Spot)")
+    started = time.monotonic()
+    while True:
+        state, reason = aws.rollout_state(service)
+        if state == "COMPLETED":
+            return
+        if state == "FAILED":
+            raise DeployFailed(f"Апп эхэлсэнгүй: {reason}. Апп {aws.PORT} порт дээр ажиллаж байгаа эсэхийг шалгана уу.")
+        if time.monotonic() - started > ROLLOUT_TIMEOUT:
+            raise DeployFailed("Апп эхлэхэд хэт удлаа. Logs табаас апп-ын алдааг харна уу.")
+        time.sleep(5)
+
+
+def process(d: Deploy) -> None:
+    try:
+        build(d)
+        start(d)
+    except DeployFailed as e:
+        fail(d, str(e))
+        return
+    except Exception as e:  # AWS/API errors: show a short message, keep details in the server log
+        log.exception("deploy %s failed", d.pk)
+        fail(d, f"Системийн алдаа ({type(e).__name__}). Багшид хандана уу.")
+        return
+    d.state = Deploy.LIVE
+    d.duration = d.elapsed
+    d.save(update_fields=["state", "duration"])
+    d.log(f"==> Таны апп ажиллаж байна 🎉 {d.service.url}")
+
+
+def fail(d: Deploy, message: str) -> None:
+    d.state, d.error = Deploy.FAILED, message[:500]
+    d.duration = d.elapsed
+    d.save(update_fields=["state", "error", "duration"])
+    d.log(f"!! {message}")
+
+
+def claim_deploy() -> Deploy | None:
+    with transaction.atomic():
+        d = Deploy.objects.filter(state=Deploy.QUEUED).order_by("started_at").first()
+        if d is None:
+            return None
+        # Re-check inside the transaction so two workers never take the same deploy.
+        if Deploy.objects.filter(pk=d.pk, state=Deploy.QUEUED).update(state=Deploy.BUILDING) != 1:
+            return None
+    d.refresh_from_db()
+    return d
+
+
+def run_jobs() -> None:
+    for job in Job.objects.filter(done=False, run_after__lte=timezone.now())[:5]:
+        try:
+            if job.kind == "teardown":
+                aws.teardown(job.payload)
+            elif job.kind == "delete_files":
+                aws.delete_prefix(job.payload["prefix"])
+            elif job.kind == "drop_database":
+                aws.drop_database(job.payload["name"], job.payload["username"])
+            job.done = True
+        except Exception as e:
+            job.attempts += 1
+            job.error = f"{type(e).__name__}: {e}"[:2000]
+            job.run_after = timezone.now() + timezone.timedelta(seconds=min(3600, 30 * 2 ** job.attempts))
+            job.done = job.attempts >= 10
+        job.save()
+
+
+def recover() -> None:
+    """A deploy left half-done by a worker restart is marked failed; the student can redeploy."""
+    for d in Deploy.objects.filter(state__in=[Deploy.BUILDING, Deploy.STARTING]):
+        fail(d, "Сервер дахин эхэлсэн тул deploy тасарлаа. Дахин deploy хийнэ үү.")
+
+
+def loop() -> None:
+    recover()
+    while True:
+        d = claim_deploy()
+        if d:
+            process(d)
+        else:
+            run_jobs()
+            time.sleep(2)

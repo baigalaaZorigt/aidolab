@@ -2,3 +2,5 @@ Django==6.1.2
 gunicorn==26.2.0
 anthropic==1.13.0
 bandit==1.9.4
+boto3==1.43.100
+psycopg[binary]==3.3.6

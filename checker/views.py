@@ -1,3 +1,4 @@
+import logging
 import re
 
 from django.contrib import messages
@@ -14,6 +15,8 @@ from .models import CustomDomain, EnvVar, ScanRun, Service, profile_for
 from .naming import dns_lookup, domain_error, normalize_domain, slug_error, slug_from_repo
 from .plans import get_plan
 from .scanner import ScanError, scan_repo
+
+log = logging.getLogger(__name__)
 
 ENV_KEY_RE = re.compile(r"^[A-Z_][A-Z0-9_]{0,99}$")
 # Set by the platform at deploy time; students can't override them.
@@ -109,7 +112,13 @@ def service_events(request, pk):
 def service_logs(request, pk):
     service = own_service(request, pk)
     deploy = service.latest_deploy
-    return render(request, "checker/service_logs.html", {"service": service, "deploy": deploy, "tab": "logs"})
+    try:
+        app_log = hosting.app_log(service)
+    except Exception:
+        log.exception("app log for service %s", service.pk)
+        app_log = None
+    return render(request, "checker/service_logs.html", {
+        "service": service, "deploy": deploy, "app_log": app_log, "tab": "logs"})
 
 
 @login_required
@@ -128,6 +137,8 @@ def service_metrics(request, pk):
 def deploy(request, pk):
     service = own_service(request, pk)
     error = hosting.deploy_error(service, user_plan(request))
+    if not error and service.deploy_state == "building":
+        error = "Өмнөх deploy дуусаагүй байна."
     if error:
         messages.error(request, error)
         return redirect("service", pk=service.pk)
@@ -140,8 +151,7 @@ def deploy(request, pk):
 @login_required
 def suspend(request, pk):
     service = own_service(request, pk)
-    service.suspended = not service.suspended
-    service.save(update_fields=["suspended"])
+    hosting.set_suspended(service, not service.suspended)
     messages.success(request, "Апп түр зогслоо." if service.suspended else "Апп дахин асаалаа.")
     audit(request, "service", "Апп-ыг түр зогсоов" if service.suspended else "Апп-ыг дахин асаав", service)
     return redirect("service_settings", pk=service.pk)
@@ -157,12 +167,17 @@ def service_database(request, pk):
             if not plan["database"]:
                 messages.error(request, "Өгөгдлийн сан Сурагч болон Pro багцад багтдаг.")
             else:
-                db = hosting.create_database(service)
+                try:
+                    db = hosting.create_database(service)
+                except Exception:
+                    log.exception("create database for service %s", service.pk)
+                    messages.error(request, "Өгөгдлийн сан үүсгэж чадсангүй. Түр хүлээгээд дахин оролдоно уу.")
+                    return redirect("service_database", pk=service.pk)
                 audit(request, "database", f"Postgres өгөгдлийн сан {db.name} үүсгэв", service)
                 messages.success(request, "Postgres өгөгдлийн сан үүслээ. DATABASE_URL дараагийн deploy-оос автоматаар орно.")
         elif action == "delete" and hasattr(service, "database"):
             audit(request, "database", f"Өгөгдлийн сан {service.database.name} устгав", service)
-            service.database.delete()
+            hosting.delete_database(service)
             messages.success(request, "Өгөгдлийн сан устгагдлаа.")
         return redirect("service_database", pk=service.pk)
     return render(request, "checker/service_database.html", {
@@ -183,7 +198,7 @@ def service_storage(request, pk):
                 audit(request, "storage", "Файлын сан идэвхжүүлэв", service)
                 messages.success(request, "Файл хадгалах сан идэвхжлээ.")
         elif action == "delete" and hasattr(service, "bucket"):
-            service.bucket.delete()
+            hosting.delete_bucket(service)
             audit(request, "storage", "Файлын сан устгав", service)
             messages.success(request, "Файл хадгалах сан устгагдлаа.")
         return redirect("service_storage", pk=service.pk)
@@ -284,6 +299,10 @@ def service_settings(request, pk):
             messages.error(request, error)
         elif Service.objects.filter(slug=slug).exclude(pk=service.pk).exists():
             messages.error(request, "Энэ нэрийг өөр хүн ашиглаж байна.")
+        elif hosting.is_aws() and slug != service.slug and (service.latest_deploy or hasattr(service, "database")
+                                                             or hasattr(service, "bucket")):
+            # The slug names the app's DNS entry, database and file prefix.
+            messages.error(request, "Deploy хийсэн, эсвэл өгөгдлийн сан/файлын сантай апп-ын хаягийг өөрчлөх боломжгүй.")
         else:
             old = service.slug
             service.slug = slug
@@ -312,7 +331,7 @@ def rescan(request, pk):
 def delete_service(request, pk):
     service = own_service(request, pk)
     audit(request, "service", f"{service.name} үйлчилгээг устгав", service)
-    service.delete()
+    hosting.delete_service(service)
     messages.success(request, f"{service.name} устгагдлаа.")
     return redirect("dashboard")
 

@@ -41,7 +41,7 @@ class Service(models.Model):
 
     @property
     def deploy_state(self) -> str:
-        """none | building | live | suspended"""
+        """none | building | live | failed | suspended"""
         latest = self.latest_deploy
         if latest is None:
             return "none"
@@ -52,7 +52,8 @@ class Service(models.Model):
     @property
     def deploy_label(self) -> str:
         return {"none": "Deploy хийгдээгүй", "building": "Deploy хийгдэж байна",
-                "live": "Ажиллаж байна", "suspended": "Түр зогссон"}[self.deploy_state]
+                "live": "Ажиллаж байна", "failed": "Deploy амжилтгүй",
+                "suspended": "Түр зогссон"}[self.deploy_state]
 
     def __str__(self):
         return self.name
@@ -153,7 +154,11 @@ def profile_for(user) -> Profile:
 
 
 class Deploy(models.Model):
-    """Simulated deploy: status is derived from elapsed time, logs are revealed by offset."""
+    """A deploy. Demo mode: status comes from elapsed time and logs are revealed by offset.
+    AWS mode (`state` set): the worker moves it queued → building → starting → live | failed
+    and appends log lines as they happen."""
+
+    QUEUED, BUILDING, STARTING, LIVE, FAILED = "queued", "building", "starting", "live", "failed"
 
     service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name="deploys")
     number = models.IntegerField()
@@ -162,6 +167,10 @@ class Deploy(models.Model):
     logs = models.JSONField(default=list)  # [[offset_seconds, line], ...]
     started_at = models.DateTimeField(default=timezone.now)
     duration = models.IntegerField(default=DEPLOY_SECONDS)
+    state = models.CharField(max_length=10, blank=True)  # empty = simulated
+    build_id = models.CharField(max_length=200, blank=True)
+    image = models.CharField(max_length=300, blank=True)
+    error = models.CharField(max_length=500, blank=True)
 
     class Meta:
         ordering = ["-started_at", "-pk"]
@@ -171,8 +180,19 @@ class Deploy(models.Model):
         return self.started_at + timezone.timedelta(seconds=self.duration)
 
     @property
+    def is_real(self) -> bool:
+        return bool(self.state)
+
+    @property
     def status(self) -> str:
+        """building | live | failed"""
+        if self.state:
+            return {self.LIVE: "live", self.FAILED: "failed"}.get(self.state, "building")
         return "building" if timezone.now() < self.finished_at else "live"
+
+    def log(self, line: str) -> None:
+        self.logs.append([self.elapsed, line])
+        self.save(update_fields=["logs"])
 
     @property
     def elapsed(self) -> int:
@@ -277,3 +297,18 @@ class DedicatedIP(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="dedicated_ip")
     address = models.GenericIPAddressField()
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class Job(models.Model):
+    """Background AWS work that must outlive the request (e.g. tearing down a deleted app)."""
+
+    kind = models.CharField(max_length=30)
+    payload = models.JSONField(default=dict)
+    attempts = models.IntegerField(default=0)
+    error = models.TextField(blank=True)
+    done = models.BooleanField(default=False)
+    run_after = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["run_after", "pk"]

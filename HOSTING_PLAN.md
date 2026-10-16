@@ -1,5 +1,9 @@
 # Hosting төлөвлөгөө — ажлын жагсаалт
 
+> **2026-10-16 шинэчлэл:** Caddy-ийн оронд **nginx + certbot**, ELB байхгүй. Дэд бүтцийг **Terraform** (`infra/`) үүсгэнэ.
+> Код: `checker/aws.py` (AWS дуудлага), `checker/worker.py` (deploy queue), `HOSTING_BACKEND=aws|demo`.
+> Апп-ын маршрут: nginx `<slug>.aidolab.mn` → Cloud Map `<slug>.apps.aidolab.internal:8000`. Хэрэглэгчийн домэйн (certbot HTTP-01, nginx map) — дараагийн алхам.
+
 **Шийдвэр (2026-10-11):** хамгийн хямд хэрнээ найдвартай архитектур буюу **"B хувилбар"** ашиглана.
 Нэг жижиг EC2 сервер манай кодыг (dashboard, worker, proxy) ажиллуулна. Апп бүр `<нэр>.aidolab.mn` хаягтай, хэрэглэгч өөрийн домэйнээ холбож болно, SSL автомат. Сурагчийн апп Fargate Spot дээр тусдаа ажиллана.
 Өгөгдлийн сангаар хуваалцсан RDS Postgres, файл хадгалахад S3 ашиглана.
@@ -90,17 +94,17 @@ Activate өргөдлийн тайлбарын жишээ:
 ### 2. Кодын бэлтгэл (AWS шаардлагагүй, одоо эхлэх боломжтой)
 - [x] Хэрэглэгчийн бүртгэл ба нэвтрэлт (имэйл + нууц үг, ангийн код = `ACCESS_CODE`). Багш `/admin/`-аар удирдана (2026-10-11)
 - [ ] `DATABASE_URL`-аар Postgres дэмжих. Локал дээр SQLite хэвээр үлдэнэ
-- [ ] Шалгалт, deploy-ийг background worker-оор ажиллуулах (DB дээр суурилсан queue). Gunicorn timeout-оос сална
+- [x] Deploy-ийг background worker-оор ажиллуулах (DB дээр суурилсан queue, `run_worker`). Шалгалт одоохондоо шууд (~3–60 сек)
 - [x] `Service` загварыг өргөтгөх: subdomain (`slug`), орчны хувьсагч (`EnvVar`), шалгалтын түүх (`ScanRun`)
 - [ ] Deploy төлөв, deploy түүх (hosting эхлэхэд)
 - [ ] `EnvVar`-ын утга одоо DB-д энгийн текстээр хадгалагдаж байна. Hosting эхлэхэд SSM SecureString руу шилжүүлнэ
 - [ ] Шинэ шалгалтууд (`Finding` хэлбэрээр):
-  - [ ] Файлыг локал дискэнд хадгалж байгаа эсэх (`open(..., "w")`, `MEDIA_ROOT`). "Redeploy хийхэд устна, S3 ашигла" гэж тайлбарлана
-  - [ ] Production-д SQLite ашиглаж байгаа эсэх
+  - [x] Файлыг локал дискэнд хадгалж байгаа эсэх (`open(..., "w")`, `MEDIA_ROOT`). "Redeploy хийхэд устна, S3 ашигла" гэж тайлбарлана
+  - [x] Production-д SQLite ашиглаж байгаа эсэх
   - [ ] DB-ийн нууц үг кодонд бичигдсэн эсэх, `DATABASE_URL`-ийг уншиж байгаа эсэх
-  - [ ] Start command байгаа эсэх (Procfile эсвэл gunicorn тохиргоо)
+  - [x] Start command байгаа эсэх (Procfile эсвэл gunicorn тохиргоо)
 - [ ] Deploy-ийн шалгуур: оноо 80-аас доош бол "Deploy хийх" товч идэвхгүй байна
-- [ ] Infrastructure-as-code хэрэгслийг сонгох (Terraform эсвэл AWS CDK Python). Эзэмшигчээс асууна
+- [x] Infrastructure-as-code: **Terraform** (2026-10-16)
 
 ### 2б. Демо горим (2026-10-11 хийгдсэн)
 - [x] Бүх UI ажилладаг: deploy + log, Postgres, файлын сан, Mentor, QPay нэхэмжлэх (симуляц, `DEMO_MODE`)
@@ -109,7 +113,7 @@ Activate өргөдлийн тайлбарын жишээ:
 - [ ] Багцын үнийг эцэслэх (`checker/plans.py`: Үнэгүй 0₮, Сурагч 29,000₮, Pro 79,000₮ — түр утга)
 
 ### 3. AWS дэд бүтэц
-- [ ] VPC: 2 AZ, public subnet (gateway), private subnet (апп, RDS)
+- [x] VPC: 2 AZ, public subnet (gateway), private subnet (апп, RDS) — `infra/network.tf`
 - [ ] Security group:
   - [ ] Апп → RDS:5432 зөвхөн
   - [ ] Gateway → апп-ын порт
@@ -121,18 +125,18 @@ Activate өргөдлийн тайлбарын жишээ:
   - [ ] User-data скриптээр дахин босгодог байх
 - [ ] Caddy: маршрутыг DB-ээс үүсгэнэ (домэйн, SSL-ийг 3б хэсгээс)
 - [x] Django dashboard-ийг gateway дээр systemd + Caddy-гаар ажиллуулах скриптүүд (`deploy/`, 2026-10-11)
-- [ ] Worker-ыг systemd service болгох (deploy queue хийгдэхэд)
-- [ ] RDS Postgres `db.t4g.micro`: private, backup-ийг 7 хоног хадгалах, нийтэд нээлттэй биш
-- [ ] S3 bucket: Block Public Access, апп бүрд prefix
-- [ ] ECR repository: lifecycle-ээр сүүлийн 3 image-ийг хадгална
-- [ ] CodeBuild project: VPC-гүй, зөвхөн ECR-д push хийх эрхтэй
-- [ ] ECS cluster: `FARGATE_SPOT` capacity provider
+- [x] Worker-ыг systemd service болгох (`deploy/aidolab-worker.service`)
+- [x] RDS Postgres `db.t4g.micro`: private, backup-ийг 7 хоног хадгалах, нийтэд нээлттэй биш — `infra/data.tf`
+- [x] S3 bucket: Block Public Access, апп бүрд prefix
+- [x] ECR repository (нийт 300 image хүртэл; апп бүрийн сүүлийн 3-ыг worker цэвэрлэх — дараа)
+- [x] CodeBuild project: VPC-гүй, зөвхөн ECR-д push хийх эрхтэй (`infra/buildspec.yml`)
+- [x] ECS cluster: `FARGATE_SPOT` capacity provider
 - [ ] IAM:
   - [ ] Worker role: ECS, CodeBuild, SSM, IAM-ийн хязгаарлагдмал эрх
   - [ ] Апп бүрийн task role: зөвхөн өөрийн S3 prefix
-- [ ] SSM Parameter Store (SecureString): апп бүрийн орчны хувьсагч
+- [x] SSM Parameter Store (SecureString): апп бүрийн орчны хувьсагч
 - [ ] CloudWatch Logs: 7 хоног хадгалах. Alarm: EC2 status, RDS CPU, RDS storage → имэйл
-- [ ] DLM: gateway EBS-ийн өдөр тутмын snapshot
+- [x] DLM: gateway EBS-ийн өдөр тутмын snapshot
 - [ ] Route 53: домэйн болон wildcard бичлэг (дэлгэрэнгүйг 3б хэсгээс)
 
 ### 3б. Домэйн ба SSL — `aidolab.mn`

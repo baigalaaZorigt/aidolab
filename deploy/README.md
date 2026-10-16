@@ -58,3 +58,23 @@ GitHub руу push хийсний дараа сервер дээр: `sudo bash /
 | `nginx-aidolab.conf` | `/static/` + reverse proxy (TLS хэсгийг certbot нэмнэ, `certbot.timer` сунгана) |
 | `backup.sh`, `aidolab-backup.*` | Шөнө 03:30-д SQLite-ийн хуулбар, 14 хоног хадгална |
 | `env.example` | `/etc/aidolab/env`-ийн загвар (нууц утга repo-д орохгүй) |
+
+## 4. Бодит hosting (сурагчийн апп, `infra/` Terraform)
+
+Шинэ gateway нь aidolab-ийн өөрийн VPC дотор байна (NAT + nginx + dashboard + worker). Хуучин gateway `cutover` хүртэл ажилласаар байна.
+
+```bash
+cd infra
+cp terraform.tfvars.example terraform.tfvars   # admin_cidrs, alert_email
+terraform init && terraform plan -out tfplan && terraform apply tfplan
+terraform output -raw gateway_env               # → шинэ gateway-ийн /etc/aidolab/env-д нэмнэ
+```
+
+Шинэ gateway дээр: `bootstrap.sh` (дээрх 2-р хэсэг) → `gateway_env`-ийг `/etc/aidolab/env`-д нэмэх → `sudo bash /srv/aidolab/app/deploy/bootstrap-hosting.sh` (wildcard SSL, `*.aidolab.mn` proxy, worker).
+Хуучин gateway-ээс SQLite-ийг хуулж аваад `cutover = true` → `terraform apply` (`app.aidolab.mn` шинэ IP руу заана). Дараа нь хуучин instance-ийг зогсооно.
+
+| Файл | Үүрэг |
+|---|---|
+| `nginx-apps.conf` | `<slug>.aidolab.mn` → `<slug>.apps.aidolab.internal:8000` (Cloud Map, апп бүрд тохиргоо хэрэггүй) |
+| `aidolab-worker.service` | `manage.py run_worker`: CodeBuild → ECS deploy, устгах ажлууд |
+| `bootstrap-hosting.sh` | wildcard гэрчилгээ (certbot-dns-route53), apps proxy, worker асаах |

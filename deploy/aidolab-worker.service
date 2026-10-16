@@ -1,0 +1,19 @@
+[Unit]
+Description=aidolab deploy worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=aidolab
+Group=aidolab
+WorkingDirectory=/srv/aidolab/app
+EnvironmentFile=/etc/aidolab/env
+ExecStart=/srv/aidolab/venv/bin/python manage.py run_worker
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

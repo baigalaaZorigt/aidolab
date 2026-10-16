@@ -5,7 +5,7 @@
   .event:first-child { border-top:0; }
   .event .dot { width:30px; height:30px; border-radius:50%; display:grid; place-items:center; }
   .dot.ready, .dot.live { background:var(--ok-soft); color:var(--ok); } .dot.warn { background:var(--warn-soft); color:var(--warn); } .dot.risk { background:var(--risk-soft); color:var(--risk); }
-  .dot.building { background:var(--accent-soft); color:var(--accent); }
+  .dot.building { background:var(--accent-soft); color:var(--accent); } .dot.failed { background:var(--risk-soft); color:var(--risk); }
   .event b { font-weight:500; }
   .event .sub2 { color:var(--muted); font-size:13px; margin-top:2px; }
   .event .right { display:flex; align-items:center; gap:12px; }
@@ -22,7 +22,7 @@
     <div class="event">
       <span class="dot {{ e.status }}"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg></span>
       <div>
-        <b>Deploy #{{ e.number }} {% if e.status == "building" %}явагдаж байна{% else %}амжилттай{% endif %}</b>
+        <b>Deploy #{{ e.number }} {% if e.status == "building" %}явагдаж байна{% elif e.status == "failed" %}амжилтгүй{% else %}амжилттай{% endif %}</b>
         {% if e.pk == current_deploy %}<span class="tag" style="margin-left:6px">Одоогийн</span>{% endif %}
         <div class="sub2">{% if e.trigger == "rollback" %}Өмнөх хувилбар руу буцаасан{% else %}Гараар эхлүүлсэн{% endif %} · оноо {{ e.score }}/100 · <a class="link" href="/services/{{ service.pk }}/logs/">Log</a></div>
       </div>

@@ -60,6 +60,12 @@ SESSION_COOKIE_AGE = 60 * 60 * 24 * 30
 
 # Hosting is simulated until the AWS setup in HOSTING_PLAN.md exists; shows a "Демо" badge.
 DEMO_MODE = os.environ.get("DEMO_MODE", "1") != "0"
+# "demo" simulates deploys/databases; "aws" runs them for real (infra/, checker/aws.py).
+# Billing (QPay) and the dedicated IP stay simulated while DEMO_MODE is on.
+HOSTING_BACKEND = os.environ.get("HOSTING_BACKEND", "demo")
+AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
+# Terraform output `gateway_env` fills these on the gateway.
+AIDOLAB = {key.removeprefix("AIDOLAB_"): value for key, value in os.environ.items() if key.startswith("AIDOLAB_")}
 # Elastic IP of the gateway; customers point apex domains here. 203.0.113.0/24 is a documentation range.
 GATEWAY_IP = os.environ.get("GATEWAY_IP", "203.0.113.10")
 

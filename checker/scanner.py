@@ -125,6 +125,52 @@ def check_repo_files(root: Path) -> list[Finding]:
     return findings
 
 
+# --- Hosting readiness -----------------------------------------------------------
+# Apps run in containers that are replaced on every deploy, so the local disk is not kept.
+
+FILE_WRITE_RE = re.compile(r"""\bopen\([^)]*,\s*['"](w|a|wb|ab|w\+)['"]|\.save\(\s*os\.path\.join\(|MEDIA_ROOT\s*=""")
+SQLITE_RE = re.compile(r"django\.db\.backends\.sqlite3|sqlite3\.connect\(|sqlite:///")
+
+
+def has_start_command(root: Path) -> bool:
+    procfile = root / "Procfile"
+    if procfile.exists() and re.search(r"(?m)^web:", procfile.read_text(errors="ignore")):
+        return True
+    if (root / "Dockerfile").exists() or (root / "app.py").exists():
+        return True
+    reqs = (root / "requirements.txt").read_text(errors="ignore").lower() if (root / "requirements.txt").exists() else ""
+    if (root / "main.py").exists() and "fastapi" in reqs:
+        return True
+    return any(p for p in root.rglob("wsgi.py") if not any(part in SKIP_DIRS for part in p.parts))
+
+
+def check_hosting(root: Path) -> list[Finding]:
+    findings = []
+    if not has_start_command(root):
+        findings.append(Finding("no_start_command", "medium", "Апп-ыг эхлүүлэх команд олдсонгүй",
+                                "Procfile", 0, "Procfile файлд жишээ нь: web: gunicorn app:app --bind 0.0.0.0:$PORT"))
+    uses_database_url = False
+    sqlite_hits, write_hits = [], []
+    for path, text in iter_text_files(root):
+        if path.suffix != ".py":
+            continue
+        rel = str(path.relative_to(root))
+        uses_database_url = uses_database_url or "DATABASE_URL" in text
+        for lineno, line in enumerate(text.splitlines(), 1):
+            if SQLITE_RE.search(line):
+                sqlite_hits.append((rel, lineno))
+            if FILE_WRITE_RE.search(line):
+                write_hits.append((rel, lineno))
+    if sqlite_hits and not uses_database_url:
+        rel, lineno = sqlite_hits[0]
+        findings.append(Finding("sqlite_in_prod", "low", "SQLite ашиглаж байна — deploy бүрт өгөгдөл устна", rel, lineno,
+                                "Postgres өгөгдлийн сан үүсгээд DATABASE_URL орчны хувьсагчаас уншина уу."))
+    for rel, lineno in write_hits[:2]:
+        findings.append(Finding("local_file_write", "low", "Файлыг серверийн дискэнд хадгалж байна — deploy бүрт устна",
+                                rel, lineno, "Файлын санг (S3) ашиглана уу: S3_BUCKET, S3_PREFIX орчны хувьсагч."))
+    return findings
+
+
 def parse_requirements(root: Path) -> tuple[list[tuple[str, str]], list[str], Path | None]:
     req = root / "requirements.txt"
     if not req.exists():
@@ -257,7 +303,7 @@ def scan_repo(url: str) -> dict:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp) / "repo"
         clone(url, root)
-        findings = (check_secrets(root) + check_repo_files(root)
+        findings = (check_secrets(root) + check_repo_files(root) + check_hosting(root)
                     + check_dependencies(root) + check_bandit(root))
     order = {"high": 0, "medium": 1, "low": 2}
     findings = dedupe(findings)

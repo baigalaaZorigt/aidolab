@@ -11,12 +11,19 @@
     <div class="log-head">
       <span>Deploy #{{ deploy.number }} · {{ deploy.started_at|date:"Y-m-d H:i" }}</span>
       {% if deploy.status == "building" %}<span class="chip building" id="log-status"><span class="pulse"></span>Бүтээж байна</span>
+      {% elif deploy.status == "failed" %}<span class="chip risk"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>Амжилтгүй</span>
       {% else %}<span class="chip live"><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Амжилттай</span>{% endif %}
     </div>
-    <div class="log" id="deploy-log" data-elapsed="{{ deploy.elapsed }}" data-building="{% if deploy.status == 'building' %}1{% endif %}">
+    <div class="log" id="deploy-log" data-elapsed="{{ deploy.elapsed }}" data-building="{% if deploy.status == 'building' %}1{% endif %}" data-real="{% if deploy.is_real %}1{% endif %}">
       {% for line in deploy.logs %}<div class="log-line" data-at="{{ line.0 }}"><span class="ts">{{ deploy.started_at|date:"H:i:s" }}+{{ line.0 }}s</span>{{ line.1 }}</div>{% endfor %}
     </div>
   </div>
+  {% if app_log is not None %}
+  <div class="log-box" style="margin-top:16px">
+    <div class="log-head"><span>Апп-ын log (сүүлийн 24 цаг)</span></div>
+    <div class="log">{% for line in app_log %}<div class="log-line">{{ line }}</div>{% empty %}<div class="log-line">Одоогоор log алга.</div>{% endfor %}</div>
+  </div>
+  {% endif %}
   {% else %}
   <div class="box empty">Log алга. Deploy хийсний дараа энд харагдана.</div>
   {% endif %}
@@ -26,7 +33,11 @@
 <script>
   // While a deploy is building, reveal log lines at their offsets, then reload to show the live state.
   const box = document.getElementById("deploy-log");
-  if (box && box.dataset.building) {
+  if (box && box.dataset.building && box.dataset.real) {
+    // Real deploy: the worker appends lines; refresh until it finishes.
+    box.scrollTop = box.scrollHeight;
+    setTimeout(() => location.reload(), 3000);
+  } else if (box && box.dataset.building) {
     const t0 = Date.now() - Number(box.dataset.elapsed) * 1000;
     const lines = [...box.querySelectorAll("[data-at]")];
     const cursor = document.createElement("span");
