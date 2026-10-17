@@ -369,3 +369,15 @@ class SocialAccount(models.Model):
     @property
     def provider_label(self) -> str:
         return self.PROVIDERS.get(self.provider, self.provider)
+
+
+class GitHubInstallation(models.Model):
+    """The aidolab GitHub App installed on a user's own GitHub account (private repos, read-only).
+
+    No token is stored: checker/github_app.py mints a 1-hour installation token when needed.
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="github_installations")
+    installation_id = models.BigIntegerField(unique=True)
+    account_login = models.CharField(max_length=200)  # GitHub user that owns the repos
+    created_at = models.DateTimeField(auto_now_add=True)

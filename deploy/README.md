@@ -35,6 +35,10 @@ sudo nano /etc/aidolab/env        # ANTHROPIC_API_KEY бөглөнө
 #   GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET  — GitHub OAuth App, callback: https://app.aidolab.mn/oauth/github/callback/
 # ALLOWED_HOSTS-д aidolab.mn нэмнэ (компанийн нүүр хуудас, deploy/nginx-site.conf)
 #   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET  — Google OAuth client, redirect: https://app.aidolab.mn/oauth/google/callback/
+# Заавал биш: private repo (GitHub App; байхгүй бол "Private repo нэмэх" товч нуугдана)
+#   github.com/settings/apps/new → Setup URL: https://app.aidolab.mn/github/installed/ ("Redirect on update" асаана),
+#   Webhook: идэвхгүй, Permissions: Contents = Read-only, Metadata = Read-only, "Only on this account" биш "Any account".
+#   GITHUB_APP_ID, GITHUB_APP_SLUG (github.com/apps/<slug>), GITHUB_APP_PRIVATE_KEY (.pem, мөрийг \n-ээр нэг мөр болгоно)
 sudo bash /srv/aidolab/app/deploy/update.sh
 ```
 

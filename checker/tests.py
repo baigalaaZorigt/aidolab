@@ -7,8 +7,8 @@ from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from . import domains, hosting, worker
-from .models import ContactRequest, CustomDomain, Deploy, EnvVar, Job, Service, SocialAccount
+from . import domains, github_app, hosting, scanner, worker
+from .models import ContactRequest, CustomDomain, Deploy, EnvVar, GitHubInstallation, Job, Service, SocialAccount
 from .plans import get_plan
 
 AWS = override_settings(HOSTING_BACKEND="aws", AIDOLAB={"FILES_BUCKET": "files"})
@@ -436,3 +436,64 @@ class SlugTests(TestCase):
     def test_reserved_repo_name_gets_random_app_name(self):
         from .views import unique_slug
         self.assertRegex(unique_slug("bat/admin"), r"^app-[a-km-z2-9]{4}$")
+
+
+APP_ENV = {"GITHUB_APP_ID": "1", "GITHUB_APP_SLUG": "aidolab-test", "GITHUB_APP_PRIVATE_KEY": "pem"}
+
+
+def fake_app_api(path, token, method="GET"):
+    if path == "/app/installations/77":
+        return {"id": 77, "account": {"id": 42, "login": "Bat"}}
+    if path == "/app/installations/88":
+        return {"id": 88, "account": {"id": 999, "login": "someone"}}
+    if path.endswith("/access_tokens"):
+        return {"token": "ghs_secret"}
+    if path.startswith("/installation/repositories"):
+        return {"repositories": [
+            {"full_name": "Bat/diary", "html_url": "https://github.com/Bat/diary", "private": True},
+            {"full_name": "Bat/todo", "html_url": "https://github.com/Bat/todo", "private": False}]}
+    raise AssertionError(path)
+
+
+@mock.patch.dict("os.environ", APP_ENV)
+@mock.patch("checker.github_app._app_jwt", return_value="jwt")
+@mock.patch("checker.github_app._api", side_effect=fake_app_api)
+class GitHubAppTests(TestCase):
+    def setUp(self):
+        github_app._tokens.clear()
+        self.user = User.objects.create_user("bat@x.mn", password="x")
+        SocialAccount.objects.create(user=self.user, provider="github", uid="42", login="Bat")
+        self.client.force_login(self.user)
+
+    def test_installation_of_own_account_is_saved(self, *_):
+        r = self.client.get("/github/installed/", {"installation_id": "77", "setup_action": "install"})
+        self.assertRedirects(r, "/new/", fetch_redirect_response=False)
+        self.assertEqual(GitHubInstallation.objects.get().account_login, "Bat")
+
+    def test_someone_elses_installation_is_rejected(self, *_):
+        self.client.get("/github/installed/", {"installation_id": "88"})
+        self.assertFalse(GitHubInstallation.objects.exists())
+
+    def test_token_only_for_installed_owner(self, *_):
+        GitHubInstallation.objects.create(user=self.user, installation_id=77, account_login="Bat")
+        self.assertEqual(github_app.repo_token(self.user, "https://github.com/bat/diary"), "ghs_secret")
+        self.assertIsNone(github_app.repo_token(self.user, "https://github.com/other/diary"))
+
+    def test_private_repos_are_listed(self, *_):
+        GitHubInstallation.objects.create(user=self.user, installation_id=77, account_login="Bat")
+        self.assertEqual([r["name"] for r in github_app.private_repos(self.user)], ["Bat/diary"])
+
+    def test_scan_clones_with_token_kept_out_of_argv(self, *_):
+        GitHubInstallation.objects.create(user=self.user, installation_id=77, account_login="Bat")
+        with mock.patch("checker.scanner.subprocess.run") as run, mock.patch("checker.views.explain", return_value=None):
+            run.return_value = mock.Mock(stdout="c" * 40)
+            self.client.post("/new/", {"repo_url": "https://github.com/Bat/diary"})
+        clone = run.call_args_list[0]
+        self.assertNotIn("ghs_secret", " ".join(clone.args[0]))
+        self.assertIn("Authorization: Basic", clone.kwargs["env"]["GIT_CONFIG_VALUE_0"])
+        self.assertTrue(Service.objects.filter(repo_url="https://github.com/Bat/diary").exists())
+
+
+class GitEnvTests(TestCase):
+    def test_no_token_no_header(self):
+        self.assertNotIn("GIT_CONFIG_COUNT", scanner.git_env(None))

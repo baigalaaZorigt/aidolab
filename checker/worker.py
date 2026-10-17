@@ -13,7 +13,7 @@ import urllib.request
 from django.db import transaction
 from django.utils import timezone
 
-from . import aws, domains, hosting
+from . import aws, domains, github_app, hosting
 from .models import AuditEvent, Deploy, Job, Service, profile_for
 from .plans import get_plan
 from .scanner import ScanError, remote_head
@@ -42,7 +42,7 @@ def app_env(service) -> dict[str, str]:
 
 def build(d: Deploy) -> None:
     d.state = Deploy.BUILDING
-    d.build_id, d.image = aws.start_build(d.service, d.number)
+    d.build_id, d.image = aws.start_build(d.service, d.number, github_app.repo_token(d.service.owner, d.service.repo_url))
     d.save(update_fields=["state", "build_id", "image"])
     d.log("==> Image бүтээж эхэллээ (CodeBuild)")
     token, started = None, time.monotonic()
@@ -215,7 +215,7 @@ def check_pushes() -> None:
     services = Service.objects.filter(auto_deploy=True, suspended=False, deploys__isnull=False).distinct()
     for service in services.select_related("owner"):
         try:
-            head = remote_head(service.repo_url)
+            head = remote_head(service.repo_url, github_app.repo_token(service.owner, service.repo_url))
             if head is None or head == service.last_commit or service.deploy_state == "building":
                 continue
             if not service.last_commit:  # scanned before commits were tracked: start from the current tip

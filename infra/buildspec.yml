@@ -1,11 +1,20 @@
-# Runs in a throwaway CodeBuild machine. Inputs (env): REPO_URL, IMAGE_TAG, ECR_REPO.
+# Runs in a throwaway CodeBuild machine. Inputs (env): REPO_URL, IMAGE_TAG, ECR_REPO,
+# GITHUB_TOKEN (private repos only: 1-hour read-only GitHub App token, used for the clone and then unset).
 # If the repo has no Dockerfile we generate one for a Python web app listening on $PORT (8000).
 version: 0.2
 phases:
   pre_build:
     commands:
       - echo "==> Repo татаж байна $REPO_URL"
-      - git -c core.symlinks=false clone --depth 1 "$REPO_URL" app
+      - |
+        if [ -n "$GITHUB_TOKEN" ]; then
+          AUTH=$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)
+          GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.https://github.com/.extraheader \
+            GIT_CONFIG_VALUE_0="Authorization: Basic $AUTH" git -c core.symlinks=false clone --depth 1 "$REPO_URL" app
+        else
+          git -c core.symlinks=false clone --depth 1 "$REPO_URL" app
+        fi
+      - unset GITHUB_TOKEN AUTH
       - aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "${ECR_REPO%%/*}"
   build:
     commands:

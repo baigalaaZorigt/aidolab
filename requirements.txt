@@ -4,3 +4,5 @@ anthropic==1.13.0
 bandit==1.9.4
 boto3==1.43.100
 psycopg[binary]==3.3.6
+PyJWT[crypto]==2.15.1
+cryptography==50.0.2

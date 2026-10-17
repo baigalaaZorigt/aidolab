@@ -47,15 +47,21 @@
   <div class="repos">
     <div class="repos-head">
       <b>Таны GitHub repo-ууд</b>
-      <span class="muted">{{ repos|length }} public repo</span>
+      <span class="muted">{{ repos|length }} repo{% if private_count %} · {{ private_count }} private{% endif %}</span>
     </div>
+    {% if app_install_url %}
+    <div class="repos-head" style="background:var(--hover)">
+      <span class="muted">Private repo харагдахгүй байна уу? aidolab-д зөвхөн унших эрх өгөөд, аль repo-г харуулахаа өөрөө сонгоно.</span>
+      <a class="btn" href="{{ app_install_url }}">Private repo нэмэх</a>
+    </div>
+    {% endif %}
     {% if repos %}
     <div class="input"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input type="search" id="repoSearch" placeholder="Repo хайх" autocomplete="off"></div>
     <div class="repo-list">
       {% for r in repos %}
       <div class="repo" data-name="{{ r.name|lower }}">
         <div>
-          <div class="repo-name mono">{{ r.name }}</div>
+          <div class="repo-name mono">{{ r.name }}{% if r.private %} <span class="tag" style="margin-left:6px">Private</span>{% endif %}</div>
           {% if r.description %}<div class="repo-desc">{{ r.description|truncatechars:90 }}</div>{% endif %}
           <div class="repo-meta">{% if r.language %}{{ r.language }} · {% endif %}{{ r.pushed }}</div>
         </div>
@@ -64,7 +70,7 @@
       {% endfor %}
     </div>
     {% else %}
-    <p class="muted" style="padding:16px 18px;margin:0">Public repo олдсонгүй, эсвэл GitHub хариу өгсөнгүй. Доор линкээ шууд оруулж болно.</p>
+    <p class="muted" style="padding:16px 18px;margin:0">Repo олдсонгүй, эсвэл GitHub хариу өгсөнгүй. Доор линкээ шууд оруулж болно.</p>
     {% endif %}
   </div>
   <div class="or-line">эсвэл линкээр</div>

@@ -47,15 +47,13 @@ def param_prefix(service_pk: int) -> str:
 
 # --- Build -----------------------------------------------------------------------
 
-def start_build(service, number: int) -> tuple[str, str]:
+def start_build(service, number: int, token: str | None = None) -> tuple[str, str]:
+    """`token`: 1-hour read-only GitHub App token for a private repo; buildspec.yml uses it only to clone."""
     tag = f"s{service.pk}-{number}"
-    build = client("codebuild").start_build(
-        projectName=cfg("BUILD_PROJECT"),
-        environmentVariablesOverride=[
-            {"name": "REPO_URL", "value": service.repo_url, "type": "PLAINTEXT"},
-            {"name": "IMAGE_TAG", "value": tag, "type": "PLAINTEXT"},
-        ],
-    )["build"]
+    env = [{"name": "REPO_URL", "value": service.repo_url, "type": "PLAINTEXT"},
+           {"name": "IMAGE_TAG", "value": tag, "type": "PLAINTEXT"},
+           {"name": "GITHUB_TOKEN", "value": token or "", "type": "PLAINTEXT"}]
+    build = client("codebuild").start_build(projectName=cfg("BUILD_PROJECT"), environmentVariablesOverride=env)["build"]
     return build["id"], f"{cfg('ECR_REPO')}:{tag}"
 
 

@@ -8,11 +8,11 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from . import domains, hosting
+from . import domains, github_app, hosting
 from .ai import explain
 from .audit import audit
 from .oauth import github_repos
-from .models import CustomDomain, EnvVar, ScanRun, Service, profile_for
+from .models import CustomDomain, EnvVar, GitHubInstallation, ScanRun, Service, profile_for
 from .naming import domain_error, normalize_domain, slug_candidates, slug_error, slug_from_repo
 from .plans import get_plan
 from .scanner import ScanError, scan_repo
@@ -38,7 +38,7 @@ def unique_slug(repo: str) -> str:
 
 
 def run_scan(user, url: str) -> Service:
-    result = scan_repo(url)
+    result = scan_repo(url, github_app.repo_token(user, url.strip()))
     advice = explain(result) if result["findings"] else None
     name = repo_name(result["url"])
     service = Service.objects.filter(owner=user, repo_url=result["url"]).first()
@@ -83,12 +83,49 @@ def new_service(request):
         try:
             service = run_scan(request.user, context["repo_url"])
         except ScanError as e:
-            context.update(error=str(e), repos=github_repos(request.user))
+            context.update(error=str(e), **repo_choices(request.user))
             return render(request, "checker/new.html", context)
         audit(request, "scan", f"Repo шалгав — {service.score}/100 оноо", service)
         return redirect("service", pk=service.pk)
-    context["repos"] = github_repos(request.user)
+    context.update(repo_choices(request.user))
     return render(request, "checker/new.html", context)
+
+
+def repo_choices(user) -> dict:
+    """Repos to pick on /new/: public ones via the GitHub login, private ones via the GitHub App."""
+    repos = github_repos(user)
+    private = github_app.private_repos(user)
+    if repos is not None or private:
+        public_urls = {r["url"] for r in repos or []}
+        repos = [r for r in private if r["url"] not in public_urls] + (repos or [])
+    github_linked = user.social_accounts.filter(provider="github").exists()
+    return {"repos": repos, "private_count": len(private),
+            "app_install_url": github_app.install_url() if github_app.enabled() and github_linked else ""}
+
+
+@login_required
+def github_installed(request):
+    """GitHub App "Setup URL": GitHub sends the student here after installing or changing the app."""
+    if not github_app.enabled():
+        return redirect("new")
+    account = request.user.social_accounts.filter(provider="github").first()
+    try:
+        installation_id = int(request.GET.get("installation_id", ""))
+        inst = github_app.installation(installation_id)
+    except (ValueError, github_app.GitHubAppError):
+        messages.error(request, "GitHub App-ын мэдээллийг авч чадсангүй. Дахин оролдоно уу.")
+        return redirect("new")
+    owner = inst.get("account") or {}
+    # Only the GitHub account linked to this user may be connected (the id in the URL is not a secret).
+    if account is None or str(owner.get("id")) != account.uid:
+        messages.error(request, "Энэ GitHub App таны холбосон GitHub бүртгэл дээр суугаагүй байна. "
+                                "Өөрийн GitHub бүртгэлээр нэвтэрч суулгана уу.")
+        return redirect("new")
+    GitHubInstallation.objects.update_or_create(
+        installation_id=installation_id, defaults={"user": request.user, "account_login": owner.get("login", "")})
+    audit(request, "auth", "Private repo уншихыг зөвшөөрөв (GitHub App)")
+    messages.success(request, "Private repo-ууд тань холбогдлоо.")
+    return redirect("new")
 
 
 @login_required

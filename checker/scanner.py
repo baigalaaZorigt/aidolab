@@ -3,6 +3,7 @@
 Nothing from the repo is ever executed: we only read files, run bandit (static
 analysis) and look up pinned dependency versions in the OSV database.
 """
+import base64
 import json
 import os
 import re
@@ -258,10 +259,20 @@ def check_bandit(root: Path) -> list[Finding]:
 
 # --- Entry point -----------------------------------------------------------------
 
-def clone(url: str, dest: Path) -> None:
-    if not GITHUB_URL_RE.match(url):
-        raise ScanError("Зөвхөн нээлттэй GitHub repo-гийн линк оруулна уу: https://github.com/нэр/repo")
+def git_env(token: str | None = None) -> dict:
+    """Env for git. A GitHub App token goes in an env-only header: never in the URL, argv or .git/config."""
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    if token:
+        auth = base64.b64encode(f"x-access-token:{token}".encode()).decode()
+        env.update(GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="http.https://github.com/.extraheader",
+                   GIT_CONFIG_VALUE_0=f"Authorization: Basic {auth}")
+    return env
+
+
+def clone(url: str, dest: Path, token: str | None = None) -> None:
+    if not GITHUB_URL_RE.match(url):
+        raise ScanError("Зөвхөн GitHub repo-гийн линк оруулна уу: https://github.com/нэр/repo")
+    env = git_env(token)
     try:
         subprocess.run(
             ["git", "-c", "core.symlinks=false", "clone", "--depth", "1", "--single-branch",
@@ -271,17 +282,18 @@ def clone(url: str, dest: Path) -> None:
     except subprocess.TimeoutExpired:
         raise ScanError("Repo татахад хэт удаж байна.")
     except subprocess.CalledProcessError:
-        raise ScanError("Repo-г татаж чадсангүй. Линк зөв, repo нээлттэй (public) эсэхийг шалгана уу.")
+        raise ScanError("Repo-г татаж чадсангүй. Линк зөв эсэхийг шалгана уу. "
+                        "Private repo бол \"Private repo нэмэх\" товчоор aidolab-д уншиж болох эрх өгнө үү.")
     size_mb = sum(f.stat().st_size for f in dest.rglob("*") if f.is_file()) / 1_000_000
     if size_mb > MAX_REPO_MB:
         raise ScanError(f"Repo хэт том байна ({size_mb:.0f}MB > {MAX_REPO_MB}MB).")
 
 
-def remote_head(url: str) -> str | None:
+def remote_head(url: str, token: str | None = None) -> str | None:
     """Commit at the tip of the repo's default branch, without downloading it."""
     if not GITHUB_URL_RE.match(url):
         return None
-    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    env = git_env(token)
     try:
         out = subprocess.run(["git", "ls-remote", url, "HEAD"], check=True, capture_output=True,
                              text=True, timeout=20, env=env).stdout
@@ -312,11 +324,11 @@ def dedupe(findings: list[Finding]) -> list[Finding]:
     return unique
 
 
-def scan_repo(url: str) -> dict:
+def scan_repo(url: str, token: str | None = None) -> dict:
     url = url.strip()
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp) / "repo"
-        clone(url, root)
+        clone(url, root, token)
         commit = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"],
                                 capture_output=True, text=True, timeout=10).stdout.strip()
         findings = (check_secrets(root) + check_repo_files(root) + check_hosting(root)
