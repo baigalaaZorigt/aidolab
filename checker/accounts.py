@@ -1,6 +1,4 @@
 """Sign up, log in, account settings. Users log in with email (stored as username)."""
-import os
-
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
@@ -49,17 +47,14 @@ def login_view(request):
 def signup_view(request):
     if request.user.is_authenticated:
         return redirect("dashboard")
-    needs_code = bool(os.environ.get("ACCESS_CODE"))
-    context = {"needs_code": needs_code}
+    context = {}
     if request.method == "POST":
         name = request.POST.get("name", "").strip()
         email = request.POST.get("email", "").strip().lower()
         password = request.POST.get("password", "")
         context.update(name=name, email=email)
         error = None
-        if needs_code and request.POST.get("code", "").strip() != os.environ["ACCESS_CODE"]:
-            error = "Урилгын код буруу байна. AIDO Lab-тай холбогдоно уу."
-        elif not name:
+        if not name:
             error = "Нэрээ оруулна уу."
         else:
             try:

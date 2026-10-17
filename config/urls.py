@@ -15,7 +15,6 @@ urlpatterns = [
     path("logout/", accounts.logout_view, name="logout"),
     path("oauth/<str:provider>/start/", oauth.start, name="oauth_start"),
     path("oauth/<str:provider>/callback/", oauth.callback, name="oauth_callback"),
-    path("signup/finish/", oauth.finish, name="oauth_finish"),
     path("account/", accounts.account_view, name="account"),
     path("billing/", workspace.billing, name="billing"),
     path("billing/invoice/<int:pk>/", workspace.invoice, name="invoice"),

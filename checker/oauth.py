@@ -164,36 +164,14 @@ def callback(request, provider):
     if user:
         _link(user, provider, profile)
         return _log_in(request, user, saved["next"], f"{label}-ээр нэвтэрлээ (бүртгэл холбов)")
-    # New user: ask for the invitation code (and name) before creating the account.
-    request.session["oauth_pending"] = {"provider": provider, **profile}
-    return redirect("oauth_finish")
-
-
-def finish(request):
-    pending = request.session.get("oauth_pending")
-    if not pending:
-        return redirect("signup")
-    needs_code = bool(os.environ.get("ACCESS_CODE"))
-    label = SocialAccount.PROVIDERS[pending["provider"]]
-    context = {"needs_code": needs_code, "label": label, "email": pending["email"], "name": pending["name"]}
-    if request.method == "POST":
-        name = request.POST.get("name", "").strip()
-        context["name"] = name
-        if needs_code and request.POST.get("code", "").strip() != os.environ["ACCESS_CODE"]:
-            context["error"] = "Урилгын код буруу байна. AIDO Lab-тай холбогдоно уу."
-        elif not name:
-            context["error"] = "Нэрээ оруулна уу."
-        elif User.objects.filter(username=pending["email"]).exists():
-            context["error"] = "Энэ имэйлээр бүртгэл аль хэдийн үүссэн байна. Нэвтэрнэ үү."
-        else:
-            user = User.objects.create_user(username=pending["email"], email=pending["email"], first_name=name)
-            user.set_unusable_password()
-            user.save()
-            _link(user, pending["provider"], pending)
-            del request.session["oauth_pending"]
-            messages.success(request, f"Тавтай морил, {name}! Эхний repo-гоо шалгуулаарай.")
-            return _log_in(request, user, reverse("new"), f"{label}-ээр бүртгэл үүсгэв")
-    return render(request, "checker/oauth_finish.html", context)
+    # New user: create the account straight away with the provider's name and verified email.
+    name = (profile["name"] or profile["email"].split("@")[0])[:150]
+    user = User.objects.create_user(username=profile["email"], email=profile["email"], first_name=name)
+    user.set_unusable_password()
+    user.save()
+    _link(user, provider, profile)
+    messages.success(request, f"Тавтай морил, {name}! Эхний repo-гоо шалгуулаарай.")
+    return _log_in(request, user, reverse("new"), f"{label}-ээр бүртгэл үүсгэв")
 
 
 def github_repos(user) -> list[dict] | None:

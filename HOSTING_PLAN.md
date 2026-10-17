@@ -56,7 +56,7 @@ AWS-ийн үнийг AWS Pricing Calculator-аар баталгаажуулах
 - [ ] AWS бүс сонгох (Tokyo / Seoul)
 - [ ] EC2 t4g.small (Ubuntu 24.04 arm64), Elastic IP, security group 22 (өөрийн IP) / 80 / 443
 - [ ] `aidolab.mn` DNS: `A app → Elastic IP`
-- [ ] `deploy/README.md`-ийн дагуу суулгах; `/etc/aidolab/env`-д `ANTHROPIC_API_KEY`, **`ACCESS_CODE` (заавал)**
+- [ ] `deploy/README.md`-ийн дагуу суулгах; `/etc/aidolab/env`-д `ANTHROPIC_API_KEY`
 - [ ] Багшийн superuser үүсгэх, CloudWatch alarm + EBS snapshot (DLM) тохируулах
 - [ ] 1–2 сурагчийн бодит repo-гоор урьдчилан турших
 - [ ] Хичээлд хэлэх зүйл: шалгалт бодит, deploy/DB/төлбөр одоохондоо демо
@@ -92,7 +92,7 @@ Activate өргөдлийн тайлбарын жишээ:
 > AI Academy Asia is an education company in Mongolia teaching adults and children to build software with AI. We are building a deployment platform for beginner developers: it scans a student's GitHub repository for leaked secrets, insecure configuration and vulnerable dependencies, explains the results in Mongolian using AI, and will host their Python apps on AWS with local-currency (MNT) billing. We plan to run student apps on Amazon ECS Fargate with Amazon RDS for PostgreSQL and Amazon S3.
 
 ### 2. Кодын бэлтгэл (AWS шаардлагагүй, одоо эхлэх боломжтой)
-- [x] Хэрэглэгчийн бүртгэл ба нэвтрэлт (имэйл + нууц үг, ангийн код = `ACCESS_CODE`). Багш `/admin/`-аар удирдана (2026-10-11)
+- [x] Хэрэглэгчийн бүртгэл ба нэвтрэлт (имэйл + нууц үг; 2026-10-17-ноос урилгын код хассан, бүртгэл нээлттэй). Багш `/admin/`-аар удирдана (2026-10-11)
 - [ ] `DATABASE_URL`-аар Postgres дэмжих. Локал дээр SQLite хэвээр үлдэнэ
 - [x] Deploy-ийг background worker-оор ажиллуулах (DB дээр суурилсан queue, `run_worker`). Шалгалт одоохондоо шууд (~3–60 сек)
 - [x] `Service` загварыг өргөтгөх: subdomain (`slug`), орчны хувьсагч (`EnvVar`), шалгалтын түүх (`ScanRun`)

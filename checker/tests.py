@@ -277,7 +277,7 @@ class LandingTests(TestCase):
 
 
 OAUTH_ENV = {"GITHUB_CLIENT_ID": "gid", "GITHUB_CLIENT_SECRET": "gsec",
-             "GOOGLE_CLIENT_ID": "oid", "GOOGLE_CLIENT_SECRET": "osec", "ACCESS_CODE": "aido"}
+             "GOOGLE_CLIENT_ID": "oid", "GOOGLE_CLIENT_SECRET": "osec"}
 
 
 def fake_github(url, data=None, token=""):
@@ -316,14 +316,11 @@ class OAuthTests(TestCase):
         self.assertRedirects(r, "/login/", fetch_redirect_response=False)
         self.assertFalse(SocialAccount.objects.exists())
 
-    def test_new_user_needs_invitation_code(self, _http):
-        self.assertRedirects(self.github_login(), "/signup/finish/", fetch_redirect_response=False)
-        r = self.client.post("/signup/finish/", {"name": "Бат", "code": "wrong"})
-        self.assertContains(r, "Урилгын код буруу")
-        self.assertFalse(User.objects.exists())
-        r = self.client.post("/signup/finish/", {"name": "Бат", "code": "aido"})
-        self.assertRedirects(r, "/new/", fetch_redirect_response=False)
+    def test_new_user_is_created_without_extra_questions(self, _http):
+        self.assertRedirects(self.github_login(), "/new/", fetch_redirect_response=False)
         user = User.objects.get(username="bat@x.mn")
+        self.assertEqual(user.first_name, "Бат")
+        self.assertEqual(int(self.client.session["_auth_user_id"]), user.pk)
         self.assertFalse(user.has_usable_password())
         self.assertEqual(user.social_accounts.get().login, "bat")
 

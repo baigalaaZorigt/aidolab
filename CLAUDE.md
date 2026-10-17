@@ -23,14 +23,14 @@ AI ашиглан (vibe coding) апп хийж сурч буй хүмүүс о�
 | 3. Hosting | Дараа | AWS дээр Python аппыг автоматаар байршуулах. Архитектур болон ажлын жагсаалт: `HOSTING_PLAN.md` (gateway EC2 + Fargate Spot + RDS micro + S3; апп бүр `<нэр>.aidolab.mn`, хэрэглэгчийн домэйн + автомат SSL) | Архитектур сонгосон (2026-10-11) |
 | 4. Төлбөр | Дараа | QPay зэргээр төгрөгөөр төлөх | — |
 
-**10/17-ноос өмнө хийх:** GitHub руу push → Anthropic API түлхүүр → AWS EC2 + Elastic IP + `app.aidolab.mn` DNS → `deploy/README.md`-ийн дагуу суулгах (`ACCESS_CODE` заавал) → сурагчийн бодит repo-гоор турших.
+**10/17-ноос өмнө хийх:** GitHub руу push → Anthropic API түлхүүр → AWS EC2 + Elastic IP + `app.aidolab.mn` DNS → `deploy/README.md`-ийн дагуу суулгах → сурагчийн бодит repo-гоор турших.
 
 ## Архитектур
 
 - **Django** + SQLite. `config/` нь тохиргоо, `checker/` нь апп. UI нь Render-ийн dashboard шиг (цайвар), брэнд нь **aidolab**: нэвтрэх/бүртгүүлэх → Тойм → үйлчилгээ (табууд: Тойм, Үйл явдал, Орчны хувьсагч, Домэйн, Тохиргоо) → Бүртгэл, Төлбөр.
 - **Демо горим (`DEMO_MODE`, анхдагчаар асаалттай):** "Удахгүй" гэсэн зүйл байхгүй, бүх цэс ажилладаг. Deploy (хугацаагаар тооцсон төлөв + log), Postgres, файлын сан, QPay нэхэмжлэх нь `checker/hosting.py`, `checker/workspace.py`-д **симуляц** (бодит нөөц үүсгэхгүй, мөнгө авахгүй). Дээд мөрөнд "Демо горим" шошго гарна, `DEMO_MODE=0` нууна. Бодит: шалгалт, бүртгэл, орчны хувьсагч, домэйний TXT шалгалт, Mentor (багш `/admin/`-аас хариулна), **Системийн лог** (`AuditEvent`, `checker/audit.py`: шинэ үйлдэл нэмэхдээ `audit()` дуудна, нууц утга бүү бич; admin дээр зөвхөн уншина, CSV экспорттой). Dedicated IP (Pro) нь демо. **Metrics** (апп-ын таб + `/metrics/` тойм): CPU, санах ой, хүсэлт, p50/p95, урсгал — `hosting.metrics()` deploy-оос хойших хугацаанд тогтвортой (seed-тэй) симуляц өгөгдөл үүсгэнэ; графикууд vanilla SVG (`service_metrics.html`), hover + гараар сонгох + хүснэгт харагдацтай. Багцын үнэ/хязгаар: `checker/plans.py`. Deploy хийхэд оноо ≥ 80 шаардлагатай.
 - **Нүүр хуудас (`checker/landing.py`, `templates/checker/landing/`):** нэвтрээгүй зочин `/`-д AIDO Lab Mongolia танилцуулга харна (Tailwind CDN, relux.works маягийн), нэвтэрсэн хэрэглэгч `/`-д dashboard харна. Үйлчилгээ бүр өөрийн URL-тэй: `/uilchilgee/<slug>/` (агуулга нь `SERVICES` жагсаалтад). Холбоо барих форм `ContactRequest` болж хадгалагдана, багш `/admin/`-аас уншина.
-- Нэвтрэлт: Django auth, имэйлийг `username`-ээр хадгална (`checker/accounts.py`). **GitHub/Google OAuth** (`checker/oauth.py`, зөвхөн urllib; `SocialAccount`): env `GITHUB_CLIENT_ID/SECRET`, `GOOGLE_CLIENT_ID/SECRET` байхгүй бол товч нуугдана. GitHub scope зөвхөн `read:user user:email` (private код руу хандахгүй); token-оор public repo-г `/new/` дээр жагсаана. Шинэ OAuth хэрэглэгч урилгын код оруулна (`/signup/finish/`); ижил баталгаажсан имэйлтэй бүртгэлд автоматаар холбогдоно. `ACCESS_CODE` нь бүртгүүлэх үеийн урилгын код (UI дээр "сурагч/анги/багш" гэж бичихгүй; "Сурагч" нь зөвхөн багцын нэр). Багш `/admin/` (superuser: `manage.py createsuperuser`).
+- Нэвтрэлт: Django auth, имэйлийг `username`-ээр хадгална (`checker/accounts.py`). **GitHub/Google OAuth** (`checker/oauth.py`, зөвхөн urllib; `SocialAccount`): env `GITHUB_CLIENT_ID/SECRET`, `GOOGLE_CLIENT_ID/SECRET` байхгүй бол товч нуугдана. GitHub scope зөвхөн `read:user user:email` (private код руу хандахгүй); token-оор public repo-г `/new/` дээр жагсаана. Бүртгэл хүн бүрт нээлттэй (урилгын код байхгүй, 2026-10-17-ноос). Шинэ OAuth хэрэглэгчийн бүртгэл provider-ийн нэр + баталгаажсан имэйлээр шууд үүснэ (нэмэлт асуулт байхгүй); ижил баталгаажсан имэйлтэй бүртгэлд автоматаар холбогдоно. UI дээр "сурагч/анги/багш" гэж бичихгүй; "Сурагч" нь зөвхөн багцын нэр. Багш `/admin/` (superuser: `manage.py createsuperuser`).
 - `checker/models.py` — `Service` (owner, `slug` → `<slug>.aidolab.mn`, сүүлийн шалгалт), `ScanRun` (түүх), `EnvVar` (UI дээр зөвхөн бичнэ, утгыг харуулахгүй), `CustomDomain` (TXT `_aidolab.<домэйн>` токеноор баталгаажуулна).
 - `checker/naming.py` — апп-ын нэрийн дүрэм (нөөцлөгдсөн, банк/төрийн нэр хориглох), домэйн шалгах, DNS-over-HTTPS (dns.google) lookup.
 - Өгөгдөл: SQLite (`DATABASE_PATH`, production-д `/srv/aidolab/data/db.sqlite3` EBS дээр, шөнө бүр backup). Сурагчийн апп-ын DB-ийг RDS дээр гаргах үед dashboard-ийг ч RDS руу шилжүүлнэ.
@@ -50,7 +50,7 @@ AI ашиглан (vibe coding) апп хийж сурч буй хүмүүс о�
 - Сурагчийн кодыг **хэзээ ч ажиллуулахгүй**: зөвхөн уншина, static анализ хийнэ. `pip install` хийхгүй (setup.py ажиллах эрсдэлтэй). Сангийн эмзэг байдлыг зөвхөн OSV API-аар шалгана.
 - Clone хийхдээ `core.symlinks=false` ашиглана. Repo-гийн хэмжээ 50MB-аас ихгүй байна.
 - Нууц утгыг Claude-д болон дэлгэцэнд **бүтнээр нь хэзээ ч илгээхгүй, харуулахгүй**. Зөвхөн далдалсан хэлбэрээр дамжуулна.
-- Бүх нууц мэдээлэл орчны хувьсагчаас (env var) ирнэ: `DJANGO_SECRET_KEY`, `ANTHROPIC_API_KEY`, `ACCESS_CODE`, `DJANGO_DEBUG`, `ALLOWED_HOSTS`.
+- Бүх нууц мэдээлэл орчны хувьсагчаас (env var) ирнэ: `DJANGO_SECRET_KEY`, `ANTHROPIC_API_KEY`, `DJANGO_DEBUG`, `ALLOWED_HOSTS`.
 
 ## Ажиллуулах
 

@@ -37,7 +37,7 @@ if [ ! -f /etc/aidolab/env ]; then
   sed "s|^DJANGO_SECRET_KEY=.*|DJANGO_SECRET_KEY=$secret|" "$HOME_DIR/app/deploy/env.example" > /etc/aidolab/env
   chown root:aidolab /etc/aidolab/env
   chmod 640 /etc/aidolab/env
-  echo "/etc/aidolab/env үүслээ. ANTHROPIC_API_KEY, ACCESS_CODE-оо бөглөөд 'sudo bash deploy/update.sh' ажиллуулна уу."
+  echo "/etc/aidolab/env үүслээ. ANTHROPIC_API_KEY-гээ бөглөөд 'sudo bash deploy/update.sh' ажиллуулна уу."
 fi
 
 install -m 644 "$HOME_DIR/app/deploy/aidolab.service" /etc/systemd/system/aidolab.service

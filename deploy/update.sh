@@ -5,9 +5,6 @@ HOME_DIR=/srv/aidolab
 APP="$HOME_DIR/app"
 as_app() { sudo -u aidolab env $(grep -v '^#' /etc/aidolab/env | xargs) "$@"; }
 
-if ! grep -q '^ACCESS_CODE=.\+' /etc/aidolab/env; then
-  echo "АНХААР: ACCESS_CODE хоосон байна — интернэтээс хэн ч бүртгүүлж, шалгалт (AI зардал) ажиллуулж чадна."
-fi
 sudo -u aidolab git -C "$APP" pull --ff-only
 [ -d "$HOME_DIR/venv" ] || sudo -u aidolab python3.12 -m venv "$HOME_DIR/venv"
 sudo -u aidolab "$HOME_DIR/venv/bin/pip" install -q -r "$APP/requirements.txt"
