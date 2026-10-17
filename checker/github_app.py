@@ -5,9 +5,11 @@ GitHub sends them back to /github/installed/ with an installation id; we check t
 installation belongs to the GitHub account linked to the user, then store only the id.
 For each scan/build/push check we mint a 1-hour installation token.
 
-Env: GITHUB_APP_ID, GITHUB_APP_SLUG, GITHUB_APP_PRIVATE_KEY (PEM; "\\n" escapes allowed).
+Env: GITHUB_APP_ID, GITHUB_APP_SLUG, GITHUB_APP_PRIVATE_KEY (base64 of the .pem file, so the
+env file stays one word per value for update.sh; a raw PEM with "\\n" escapes also works).
 Missing env = feature hidden, public repos work as before.
 """
+import base64
 import json
 import logging
 import os
@@ -38,7 +40,8 @@ def install_url() -> str:
 
 def _app_jwt() -> str:
     now = int(time.time())
-    key = os.environ["GITHUB_APP_PRIVATE_KEY"].replace("\\n", "\n")
+    key = os.environ["GITHUB_APP_PRIVATE_KEY"]
+    key = key.replace("\\n", "\n") if key.startswith("-----") else base64.b64decode(key).decode()
     return jwt.encode({"iat": now - 60, "exp": now + 540, "iss": os.environ["GITHUB_APP_ID"]}, key, algorithm="RS256")
 
 

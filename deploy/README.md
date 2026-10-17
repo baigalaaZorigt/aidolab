@@ -38,7 +38,7 @@ sudo nano /etc/aidolab/env        # ANTHROPIC_API_KEY бөглөнө
 # Заавал биш: private repo (GitHub App; байхгүй бол "Private repo нэмэх" товч нуугдана)
 #   github.com/settings/apps/new → Setup URL: https://app.aidolab.mn/github/installed/ ("Redirect on update" асаана),
 #   Webhook: идэвхгүй, Permissions: Contents = Read-only, Metadata = Read-only, "Only on this account" биш "Any account".
-#   GITHUB_APP_ID, GITHUB_APP_SLUG (github.com/apps/<slug>), GITHUB_APP_PRIVATE_KEY (.pem, мөрийг \n-ээр нэг мөр болгоно)
+#   GITHUB_APP_ID, GITHUB_APP_SLUG (github.com/apps/<slug>), GITHUB_APP_PRIVATE_KEY (`base64 -i key.pem | tr -d '\n'`)
 sudo bash /srv/aidolab/app/deploy/update.sh
 ```
 
