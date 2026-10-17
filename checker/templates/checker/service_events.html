@@ -24,7 +24,7 @@
       <div>
         <b>Deploy #{{ e.number }} {% if e.status == "building" %}явагдаж байна{% elif e.status == "failed" %}амжилтгүй{% else %}амжилттай{% endif %}</b>
         {% if e.pk == current_deploy %}<span class="tag" style="margin-left:6px">Одоогийн</span>{% endif %}
-        <div class="sub2">{% if e.trigger == "rollback" %}Өмнөх хувилбар руу буцаасан{% else %}Гараар эхлүүлсэн{% endif %} · оноо {{ e.score }}/100 · <a class="link" href="/services/{{ service.pk }}/logs/">Log</a></div>
+        <div class="sub2">{% if e.trigger == "rollback" %}Өмнөх хувилбар руу буцаасан{% elif e.trigger == "auto" %}Шинэ commit-оор автоматаар{% else %}Гараар эхлүүлсэн{% endif %}{% if e.commit %} · <span class="mono">{{ e.commit|slice:":7" }}</span>{% endif %} · оноо {{ e.score }}/100 · <a class="link" href="/services/{{ service.pk }}/logs/">Log</a></div>
       </div>
       <div class="right">
         {% if e.pk != current_deploy %}

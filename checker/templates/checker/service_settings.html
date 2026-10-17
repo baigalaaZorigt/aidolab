@@ -28,6 +28,21 @@
 </section>
 
 <section>
+  <h2>Auto-deploy</h2>
+  <form method="post" class="box box-body slug-form">
+    {% csrf_token %}<input type="hidden" name="form" value="auto_deploy">
+    <div class="field">
+      <label style="display:flex;gap:8px;align-items:center;font-weight:500">
+        <input type="checkbox" name="auto_deploy" value="1" {% if service.auto_deploy %}checked{% endif %}>
+        Repo-гийн үндсэн branch (main)-д push хийхэд автоматаар deploy хийх
+      </label>
+      <div class="help">Шинэ commit ирснээс хойш 1–2 минутын дотор дахин шалгаж, оноо 80-аас дээш бол шинэ хувилбарыг deploy хийнэ. Анхны deploy-г гараар хийнэ.</div>
+    </div>
+    <button type="submit" class="btn">Хадгалах</button>
+  </form>
+</section>
+
+<section>
   {% if service.latest_deploy %}
   <div class="danger-zone" style="border-color:var(--line-2)">
     <div><b>{% if service.suspended %}Апп-ыг асаах{% else %}Апп-ыг түр зогсоох{% endif %}</b><p>{% if service.suspended %}Апп дахин ажиллаж эхэлнэ.{% else %}Апп зогсож, хаяг нь түр нээгдэхгүй. Өгөгдөл хадгалагдана.{% endif %}</p></div>

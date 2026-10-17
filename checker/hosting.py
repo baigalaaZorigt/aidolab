@@ -65,11 +65,11 @@ def start_deploy(service: Service, trigger: str = "manual") -> Deploy:
     if is_aws():
         # Rollback = rebuild the same repo; image reuse comes later.
         return Deploy.objects.create(service=service, number=number, trigger=trigger, score=service.score,
-                                     state=Deploy.QUEUED, duration=0,
+                                     commit=service.last_commit, state=Deploy.QUEUED, duration=0,
                                      logs=[[0, f"==> #{number} Deploy дараалалд орлоо · {service.repo_url}"],
                                            [0, f"==> Аюулгүй байдлын шалгалт: {service.score}/100 ✓"]])
     return Deploy.objects.create(service=service, number=number, trigger=trigger, score=service.score,
-                                 logs=deploy_logs(service, number, trigger))
+                                 commit=service.last_commit, logs=deploy_logs(service, number, trigger))
 
 
 def set_suspended(service: Service, suspended: bool) -> None:

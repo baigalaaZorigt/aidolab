@@ -2,7 +2,8 @@
 
 One deploy at a time: CodeBuild image → SSM params → task role → ECS service → wait for rollout.
 Progress goes into Deploy.logs, which the Logs tab polls.
-Between deploys it also syncs custom domains (checker/domains.py) once a minute.
+Between deploys it also syncs custom domains (checker/domains.py) once a minute and checks deployed
+repos for new commits (auto-deploy).
 """
 import logging
 import time
@@ -13,12 +14,16 @@ from django.db import transaction
 from django.utils import timezone
 
 from . import aws, domains, hosting
-from .models import Deploy, Job
+from .models import AuditEvent, Deploy, Job, Service, profile_for
+from .plans import get_plan
+from .scanner import ScanError, remote_head
+from .views import run_scan
 
 log = logging.getLogger(__name__)
 BUILD_TIMEOUT, ROLLOUT_TIMEOUT, HTTP_TIMEOUT = 20 * 60, 10 * 60, 3 * 60
 DOMAIN_SYNC_EVERY = 60
 FREE_EXPIRY_EVERY = 600
+PUSH_CHECK_EVERY = 60
 
 
 class DeployFailed(Exception):
@@ -185,10 +190,49 @@ def expire_free() -> None:
         log.exception("free period check failed")
 
 
+def note(service: Service, kind: str, message: str) -> None:
+    AuditEvent.objects.create(user=service.owner, service=service, service_name=service.name, kind=kind, message=message)
+
+
+def auto_deploy(service: Service, head: str) -> None:
+    """A new commit was pushed: rescan it and deploy only if it still passes the deploy rules."""
+    # Remember the commit first so a failing scan is not retried every minute.
+    Service.objects.filter(pk=service.pk).update(last_commit=head)
+    try:
+        service = run_scan(service.owner, service.repo_url)
+    except ScanError as e:
+        note(service, "scan", f"Шинэ commit {head[:7]}: шалгаж чадсангүй — {e}")
+        return
+    error = hosting.deploy_error(service, get_plan(profile_for(service.owner).effective_plan))
+    if error:
+        note(service, "deploy", f"Шинэ commit {head[:7]}: auto-deploy хийгдсэнгүй — {error}")
+        return
+    d = hosting.start_deploy(service, trigger="auto")
+    note(service, "deploy", f"Шинэ commit {d.commit[:7]}: Deploy #{d.number} автоматаар эхлэв")
+
+
+def check_pushes() -> None:
+    services = Service.objects.filter(auto_deploy=True, suspended=False, deploys__isnull=False).distinct()
+    for service in services.select_related("owner"):
+        try:
+            head = remote_head(service.repo_url)
+            if head is None or head == service.last_commit or service.deploy_state == "building":
+                continue
+            if not service.last_commit:  # scanned before commits were tracked: start from the current tip
+                Service.objects.filter(pk=service.pk).update(last_commit=head)
+                continue
+            auto_deploy(service, head)
+        except Exception:  # one broken repo must not stop the others
+            log.exception("auto-deploy check for service %s failed", service.pk)
+
+
 def loop() -> None:
     recover()
-    last_sync = last_expiry = 0.0
+    last_sync = last_expiry = last_push_check = 0.0
     while True:
+        if time.monotonic() - last_push_check > PUSH_CHECK_EVERY:
+            check_pushes()
+            last_push_check = time.monotonic()
         if time.monotonic() - last_sync > DOMAIN_SYNC_EVERY:
             sync_domains()
             last_sync = time.monotonic()

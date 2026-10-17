@@ -96,6 +96,49 @@ class RealDeployTests(TestCase):
         self.assertEqual(job.attempts, 1)
 
 
+@AWS
+@mock.patch("checker.views.explain", return_value=None)
+class AutoDeployTests(TestCase):
+    OLD, NEW = "a" * 40, "b" * 40
+
+    def setUp(self):
+        self.user = User.objects.create_user("c@example.com", password="x")
+        self.service = Service.objects.create(owner=self.user, name="todo", slug="todo-app", score=90,
+                                              repo_url="https://github.com/x/todo", last_commit=self.OLD)
+        Deploy.objects.create(service=self.service, number=1, state=Deploy.LIVE)
+
+    def scan(self, score):
+        return mock.patch("checker.views.scan_repo", return_value={
+            "url": self.service.repo_url, "score": score, "findings": [], "commit": self.NEW})
+
+    def test_new_commit_is_rescanned_and_deployed(self, _):
+        with mock.patch("checker.worker.remote_head", return_value=self.NEW), self.scan(95):
+            worker.check_pushes()
+        d = self.service.deploys.first()
+        self.assertEqual((d.number, d.trigger, d.commit, d.state), (2, "auto", self.NEW, Deploy.QUEUED))
+
+    def test_same_commit_does_nothing(self, _):
+        with mock.patch("checker.worker.remote_head", return_value=self.OLD), self.scan(95) as scan:
+            worker.check_pushes()
+        scan.assert_not_called()
+        self.assertEqual(self.service.deploys.count(), 1)
+
+    def test_low_score_blocks_auto_deploy(self, _):
+        with mock.patch("checker.worker.remote_head", return_value=self.NEW), self.scan(60):
+            worker.check_pushes()
+            worker.check_pushes()  # the commit is remembered, so it is not rescanned
+        self.assertEqual(self.service.deploys.count(), 1)
+        self.assertEqual(self.service.scans.count(), 1)
+
+    def test_turned_off_or_untracked_does_not_deploy(self, _):
+        Service.objects.filter(pk=self.service.pk).update(last_commit="")
+        with mock.patch("checker.worker.remote_head", return_value=self.NEW), self.scan(95):
+            worker.check_pushes()  # first sight of the repo only records the tip
+            Service.objects.filter(pk=self.service.pk).update(auto_deploy=False, last_commit=self.OLD)
+            worker.check_pushes()
+        self.assertEqual(self.service.deploys.count(), 1)
+
+
 class DemoDeployTests(TestCase):
     def test_demo_deploy_stays_simulated(self):
         user = User.objects.create_user("b@example.com", password="x")

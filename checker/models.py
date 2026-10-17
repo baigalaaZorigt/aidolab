@@ -28,6 +28,9 @@ class Service(models.Model):
     advice = models.JSONField(null=True, blank=True)
     suspended = models.BooleanField(default=False)
     use_dedicated_ip = models.BooleanField(default=False)
+    # Auto-deploy: the worker redeploys when the repo's default branch gets a new commit.
+    auto_deploy = models.BooleanField(default=True)
+    last_commit = models.CharField(max_length=40, blank=True)  # default-branch HEAD at the last scan
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -176,7 +179,8 @@ class Deploy(models.Model):
 
     service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name="deploys")
     number = models.IntegerField()
-    trigger = models.CharField(max_length=20, default="manual")
+    trigger = models.CharField(max_length=20, default="manual")  # manual | rollback | auto
+    commit = models.CharField(max_length=40, blank=True)
     score = models.IntegerField(default=0)
     logs = models.JSONField(default=list)  # [[offset_seconds, line], ...]
     started_at = models.DateTimeField(default=timezone.now)

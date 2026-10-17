@@ -46,6 +46,7 @@ def run_scan(user, url: str) -> Service:
         service = Service(owner=user, repo_url=result["url"], slug=unique_slug(name))
     service.name, service.score = name, result["score"]
     service.findings, service.advice = result["findings"], advice
+    service.last_commit = result.get("commit", "")
     service.save()
     c = service.counts
     ScanRun.objects.create(service=service, score=service.score, high=c["high"], medium=c["medium"], low=c["low"])
@@ -289,6 +290,12 @@ def service_domains(request, pk):
 @login_required
 def service_settings(request, pk):
     service = own_service(request, pk)
+    if request.method == "POST" and request.POST.get("form") == "auto_deploy":
+        service.auto_deploy = request.POST.get("auto_deploy") == "1"
+        service.save(update_fields=["auto_deploy"])
+        audit(request, "service", "Auto-deploy-г " + ("асаав" if service.auto_deploy else "унтраав"), service)
+        messages.success(request, "Auto-deploy асаалаа." if service.auto_deploy else "Auto-deploy унтарлаа.")
+        return redirect("service_settings", pk=service.pk)
     if request.method == "POST":
         slug = request.POST.get("slug", "").strip().lower()
         error = slug_error(slug)

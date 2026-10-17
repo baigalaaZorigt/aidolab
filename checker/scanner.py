@@ -277,6 +277,20 @@ def clone(url: str, dest: Path) -> None:
         raise ScanError(f"Repo хэт том байна ({size_mb:.0f}MB > {MAX_REPO_MB}MB).")
 
 
+def remote_head(url: str) -> str | None:
+    """Commit at the tip of the repo's default branch, without downloading it."""
+    if not GITHUB_URL_RE.match(url):
+        return None
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    try:
+        out = subprocess.run(["git", "ls-remote", url, "HEAD"], check=True, capture_output=True,
+                             text=True, timeout=20, env=env).stdout
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+        return None
+    sha = out.split("\t", 1)[0].strip()
+    return sha if re.fullmatch(r"[0-9a-f]{40}", sha) else None
+
+
 def score(findings: list[Finding]) -> int:
     # Repeats of the same problem count at most twice, so one habit doesn't zero the score.
     counts: dict[str, int] = {}
@@ -303,9 +317,12 @@ def scan_repo(url: str) -> dict:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp) / "repo"
         clone(url, root)
+        commit = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"],
+                                capture_output=True, text=True, timeout=10).stdout.strip()
         findings = (check_secrets(root) + check_repo_files(root) + check_hosting(root)
                     + check_dependencies(root) + check_bandit(root))
     order = {"high": 0, "medium": 1, "low": 2}
     findings = dedupe(findings)
     findings.sort(key=lambda f: (order.get(f.severity, 3), f.file, f.line))
-    return {"url": url, "score": score(findings), "findings": [asdict(f) for f in findings]}
+    return {"url": url, "score": score(findings), "findings": [asdict(f) for f in findings],
+            "commit": commit}
