@@ -1,6 +1,7 @@
 """Validation for app subdomains (<slug>.aidolab.mn) and custom domains, plus DNS checks."""
 import json
 import re
+import secrets
 import urllib.parse
 import urllib.request
 
@@ -32,9 +33,27 @@ def slug_error(slug: str) -> str | None:
     return None
 
 
+def _clean(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+
 def slug_from_repo(repo_name: str) -> str:
-    base = re.sub(r"[^a-z0-9]+", "-", repo_name.split("/")[-1].lower()).strip("-")[:40].strip("-")
+    base = _clean(repo_name.split("/")[-1])[:40].strip("-")
     return base if len(base) >= 3 else f"app-{base}".strip("-")
+
+
+def _join(base: str, suffix: str) -> str:
+    return f"{base[:39 - len(suffix)].rstrip('-')}-{suffix}"
+
+
+def slug_candidates(repo_name: str):
+    """Subdomain names to try for a new app: "owner/todo-app" → todo-app, then
+    todo-app-<4 random chars> (e.g. todo-app-k3x9) when the name is taken or not allowed."""
+    base = slug_from_repo(repo_name)
+    yield base
+    alphabet = "abcdefghijkmnpqrstuvwxyz23456789"  # no 0/o/1/l lookalikes
+    while True:
+        yield _join(base, "".join(secrets.choice(alphabet) for _ in range(4)))
 
 
 def normalize_domain(raw: str) -> str:

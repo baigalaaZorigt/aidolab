@@ -13,7 +13,7 @@ from .ai import explain
 from .audit import audit
 from .oauth import github_repos
 from .models import CustomDomain, EnvVar, ScanRun, Service, profile_for
-from .naming import domain_error, normalize_domain, slug_error, slug_from_repo
+from .naming import domain_error, normalize_domain, slug_candidates, slug_error, slug_from_repo
 from .plans import get_plan
 from .scanner import ScanError, scan_repo
 
@@ -28,14 +28,13 @@ def repo_name(url: str) -> str:
     return url.rstrip("/").removesuffix(".git").split("github.com/")[-1]
 
 
-def unique_slug(base: str) -> str:
-    if slug_error(base):
-        base = "app"
-    slug, n = base, 2
-    while slug_error(slug) or Service.objects.filter(slug=slug).exists():
-        slug = f"{base[:36].rstrip('-')}-{n}"
-        n += 1
-    return slug
+def unique_slug(repo: str) -> str:
+    """First free, allowed subdomain for a repo ("owner/name"), see naming.slug_candidates."""
+    if slug_error(slug_from_repo(repo)):  # reserved/blocked repo name → app-<random>
+        repo = "app"
+    for slug in slug_candidates(repo):
+        if not slug_error(slug) and not Service.objects.filter(slug=slug).exists():
+            return slug
 
 
 def run_scan(user, url: str) -> Service:
@@ -44,7 +43,7 @@ def run_scan(user, url: str) -> Service:
     name = repo_name(result["url"])
     service = Service.objects.filter(owner=user, repo_url=result["url"]).first()
     if service is None:
-        service = Service(owner=user, repo_url=result["url"], slug=unique_slug(slug_from_repo(name)))
+        service = Service(owner=user, repo_url=result["url"], slug=unique_slug(name))
     service.name, service.score = name, result["score"]
     service.findings, service.advice = result["findings"], advice
     service.save()

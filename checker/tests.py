@@ -371,3 +371,28 @@ class FreePeriodTests(TestCase):
         self.assertEqual(hosting.expire_free_apps(), 0)
         self.profile.refresh_from_db()
         self.assertEqual(self.profile.free_started_at, self.profile.plan_until)
+
+
+class SlugTests(TestCase):
+    def make(self, slug):
+        user = User.objects.create_user(f"{slug}@x.mn", f"{slug}@x.mn", "pw-12345678")
+        return Service.objects.create(owner=user, repo_url=f"https://github.com/x/{slug}", name=slug, slug=slug)
+
+    def test_first_app_gets_the_plain_name(self):
+        from .views import unique_slug
+        self.assertEqual(unique_slug("bat/todo-app"), "todo-app")
+
+    def test_same_repo_name_gets_a_random_suffix(self):
+        from .views import unique_slug
+        self.make("todo-app")
+        self.assertRegex(unique_slug("other/todo-app"), r"^todo-app-[a-km-z2-9]{4}$")
+
+    def test_long_names_stay_within_40_chars(self):
+        from .views import unique_slug
+        long = "a" * 40
+        self.make(long)
+        self.assertLessEqual(len(unique_slug(f"someverylongowner/{long}")), 40)
+
+    def test_reserved_repo_name_gets_random_app_name(self):
+        from .views import unique_slug
+        self.assertRegex(unique_slug("bat/admin"), r"^app-[a-km-z2-9]{4}$")
