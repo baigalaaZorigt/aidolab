@@ -317,7 +317,7 @@ class PlanTests(TestCase):
         profile = profile_for(user)
         profile.plan, profile.plan_until = "pro", None
         profile.save()
-        self.assertEqual(task_size(user), ("1024", "2048"))
+        self.assertEqual(task_size(user), ("2048", "4096"))
 
     def test_old_student_plan_maps_to_standard(self):
         from .plans import get_plan
@@ -327,7 +327,7 @@ class PlanTests(TestCase):
         landing = self.client.get("/").content.decode()
         self.client.force_login(User.objects.create_user("b@x.mn", "b@x.mn", "pw-12345678"))
         billing = self.client.get("/billing/").content.decode()
-        for text in ("Starter", "Standard", "199,000₮", "1 vCPU · 2 GB · 5 апп", "Их сонгогддог"):
+        for text in ("Starter", "Standard", "398,000₮", "2 vCPU · 4 GB · 1 апп", "Их сонгогддог"):
             self.assertIn(text, landing)
             self.assertIn(text, billing.replace("Одоогийн багц", "Их сонгогддог"))
         self.assertNotIn("Сурагч", landing + billing)

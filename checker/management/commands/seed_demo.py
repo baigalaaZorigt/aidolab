@@ -127,7 +127,7 @@ def seed_events(user, services, now):
         (150, "auth", "Бүртгэл үүсгэв", None),
         (149, "scan", "Repo шалгав — 52/100 оноо", todo),
         (120, "scan", "Дахин шалгав — 76/100 оноо", todo),
-        (100, "billing", "INV-демо төлөгдөж Standard багц идэвхжив (79,000₮)", None),
+        (100, "billing", "INV-демо төлөгдөж Standard багц идэвхжив (158,000₮)", None),
         (99, "env", "OPENAI_API_KEY хувьсагчийг нэмэв", todo),
         (98, "env", "FLASK_SECRET_KEY хувьсагчийг нэмэв", todo),
         (97, "database", f"Postgres өгөгдлийн сан {todo.database.name} үүсгэв", todo),

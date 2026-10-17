@@ -49,7 +49,8 @@ def deploy_error(service: Service, plan: dict) -> str | None:
         return f"Deploy хийхийн тулд оноо {MIN_DEPLOY_SCORE}-аас дээш байх ёстой. Эхлээд асуудлуудаа засаад дахин шалгуулаарай."
     deployed = Service.objects.filter(owner=service.owner, deploys__isnull=False).exclude(pk=service.pk).distinct().count()
     if deployed >= plan["apps"]:
-        return f"{plan['name']} багцад {plan['apps']} апп deploy хийх боломжтой. Багцаа ахиулна уу."
+        return (f"{plan['name']} багцад {plan['apps']} апп deploy хийх боломжтой. Өөр апп-аа устгах, "
+                "эсвэл олон апп хэрэгтэй бол info@aidolab.mn хаягаар холбогдоно уу.")
     return None
 
 
