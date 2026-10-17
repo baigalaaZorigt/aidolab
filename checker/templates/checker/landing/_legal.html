@@ -1,0 +1,12 @@
+{% comment %}Shared layout for the privacy policy and terms pages.{% endcomment %}
+{% block style %}
+  .legal { max-width:760px; padding:56px 0 72px; }
+  .legal h1 { font-size:clamp(32px, 4.5vw, 48px); font-weight:600; margin:12px 0 8px; }
+  .legal .updated { color:var(--muted); font-size:14px; margin:0 0 36px; }
+  .legal h2 { font-size:21px; font-weight:600; margin:36px 0 10px; }
+  .legal p, .legal li { color:var(--text-2); font-size:15.5px; }
+  .legal ul { padding-left:20px; }
+  .legal li { margin:6px 0; }
+  .legal a { color:var(--accent); text-decoration:underline; text-underline-offset:3px; }
+  .legal .lead { font-size:17px; color:var(--text); }
+{% endblock %}

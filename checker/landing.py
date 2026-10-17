@@ -136,6 +136,14 @@ def service_page(request, slug):
     return render(request, "checker/landing/service.html", {**ctx, "service": service})
 
 
+def privacy(request):
+    return render(request, "checker/landing/privacy.html", _context(request))
+
+
+def terms(request):
+    return render(request, "checker/landing/terms.html", _context(request))
+
+
 @require_POST
 def contact(request):
     back = request.POST.get("back", "/")

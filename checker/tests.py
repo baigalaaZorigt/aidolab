@@ -216,6 +216,10 @@ class LandingTests(TestCase):
         self.assertContains(self.client.get("/uilchilgee/rescue/"), "Rescue &amp; Fixes")
         self.assertEqual(self.client.get("/uilchilgee/nope/").status_code, 404)
 
+    def test_privacy_and_terms_pages(self):
+        self.assertContains(self.client.get("/privacy/"), "Нууцлалын бодлого")
+        self.assertContains(self.client.get("/terms/"), "Үйлчилгээний нөхцөл")
+
     def test_contact_form_is_saved(self):
         r = self.client.post("/contact/", {"contact": "Бат, 9911", "topic": "Consulting", "back": "/uilchilgee/consulting/"})
         self.assertRedirects(r, "/uilchilgee/consulting/?sent=1#contact", fetch_redirect_response=False)
