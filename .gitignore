@@ -11,3 +11,6 @@ infra/terraform.tfvars
 infra/tfplan
 infra/tfplan*
 infra/apply.log
+
+# Private keys (e.g. GitHub App key downloaded into the repo folder)
+*.pem
