@@ -5,9 +5,11 @@ from unittest import mock
 
 from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from . import domains, hosting, worker
 from .models import ContactRequest, CustomDomain, Deploy, EnvVar, Job, Service, SocialAccount
+from .plans import get_plan
 
 AWS = override_settings(HOSTING_BACKEND="aws", AIDOLAB={"FILES_BUCKET": "files"})
 
@@ -304,3 +306,68 @@ class OAuthTests(TestCase):
         self.client.force_login(User.objects.create_user("me@x.mn", "me@x.mn", "pw-12345678"))
         self.github_login()
         self.assertEqual(SocialAccount.objects.get().user, owner)
+
+
+class PlanTests(TestCase):
+    def test_task_size_follows_plan(self):
+        from .models import profile_for
+        from .plans import task_size
+        user = User.objects.create_user("p@x.mn", "p@x.mn", "pw-12345678")
+        self.assertEqual(task_size(user), ("256", "512"))
+        profile = profile_for(user)
+        profile.plan, profile.plan_until = "pro", None
+        profile.save()
+        self.assertEqual(task_size(user), ("1024", "2048"))
+
+    def test_old_student_plan_maps_to_standard(self):
+        from .plans import get_plan
+        self.assertEqual(get_plan("student")["key"], "standard")
+
+    def test_landing_and_billing_show_the_same_plans(self):
+        landing = self.client.get("/").content.decode()
+        self.client.force_login(User.objects.create_user("b@x.mn", "b@x.mn", "pw-12345678"))
+        billing = self.client.get("/billing/").content.decode()
+        for text in ("Starter", "Standard", "199,000₮", "1 vCPU · 2 GB · 5 апп", "Их сонгогддог"):
+            self.assertIn(text, landing)
+            self.assertIn(text, billing.replace("Одоогийн багц", "Их сонгогддог"))
+        self.assertNotIn("Сурагч", landing + billing)
+
+
+class FreePeriodTests(TestCase):
+    def setUp(self):
+        from .models import profile_for
+        self.user = User.objects.create_user("f@x.mn", "f@x.mn", "pw-12345678")
+        self.service = Service.objects.create(owner=self.user, repo_url="https://github.com/a/b", name="a/b", slug="free-app", score=90)
+        self.profile = profile_for(self.user)
+
+    def test_first_deploy_starts_the_free_period(self):
+        hosting.start_deploy(self.service)
+        self.profile.refresh_from_db()
+        self.assertIsNotNone(self.profile.free_started_at)
+
+    def test_apps_stop_after_14_days_and_cannot_redeploy(self):
+        hosting.start_deploy(self.service)
+        self.profile.refresh_from_db()
+        self.assertEqual(hosting.expire_free_apps(), 0)
+        self.profile.free_started_at -= timezone.timedelta(days=14, minutes=1)
+        self.profile.save()
+        self.assertEqual(hosting.expire_free_apps(), 1)
+        self.service.refresh_from_db()
+        self.assertTrue(self.service.suspended)
+        self.assertIn("14 хоног", hosting.deploy_error(self.service, get_plan("free")))
+
+    def test_paid_plan_is_not_stopped(self):
+        hosting.start_deploy(self.service)
+        self.profile.refresh_from_db()
+        self.profile.free_started_at -= timezone.timedelta(days=30)
+        self.profile.plan, self.profile.plan_until = "starter", timezone.now() + timezone.timedelta(days=10)
+        self.profile.save()
+        self.assertEqual(hosting.expire_free_apps(), 0)
+
+    def test_lapsed_paid_plan_gets_14_days_grace(self):
+        Deploy.objects.create(service=self.service, number=1)
+        self.profile.plan, self.profile.plan_until = "starter", timezone.now() - timezone.timedelta(days=1)
+        self.profile.save()
+        self.assertEqual(hosting.expire_free_apps(), 0)
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.free_started_at, self.profile.plan_until)

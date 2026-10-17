@@ -18,7 +18,9 @@ from functools import cache
 import boto3
 from django.conf import settings
 
-CPU, MEMORY_MB, PORT = "256", "512", 8000
+from .plans import task_size
+
+PORT = 8000  # cpu/memory come from the owner's plan (plans.task_size)
 APP_DOMAIN = "apps.aidolab.internal"  # Cloud Map namespace (infra/apps.tf); nginx proxies to <slug>.APP_DOMAIN
 
 
@@ -139,8 +141,9 @@ def ensure_registry(service) -> str:
 
 def register_task(service, image: str, secrets: list[dict], role_arn: str) -> str:
     name = name_for(service)
+    cpu, memory = task_size(service.owner)
     return client("ecs").register_task_definition(
-        family=name, networkMode="awsvpc", requiresCompatibilities=["FARGATE"], cpu=CPU, memory=MEMORY_MB,
+        family=name, networkMode="awsvpc", requiresCompatibilities=["FARGATE"], cpu=cpu, memory=memory,
         runtimePlatform={"cpuArchitecture": "ARM64", "operatingSystemFamily": "LINUX"},
         executionRoleArn=cfg("EXEC_ROLE_ARN"), taskRoleArn=role_arn,
         containerDefinitions=[{
@@ -326,8 +329,9 @@ def cpu_memory(service, start, end, step: int) -> dict[str, dict]:
         for key, metric in (("cpu", "CPUUtilization"), ("mem", "MemoryUtilization"))]
     resp = client("cloudwatch").get_metric_data(MetricDataQueries=queries, StartTime=start, EndTime=end)
     out = {"cpu": {}, "mem": {}}
+    memory_mb = int(task_size(service.owner)[1])
     for r in resp["MetricDataResults"]:
-        scale_by = int(MEMORY_MB) / 100 if r["Id"] == "mem" else 1
+        scale_by = memory_mb / 100 if r["Id"] == "mem" else 1
         for ts, value in zip(r["Timestamps"], r["Values"]):
             out[r["Id"]][int(ts.timestamp()) // step * step] = round(value * scale_by, 1)
     return out

@@ -157,6 +157,9 @@ def deploy(request, pk):
 @login_required
 def suspend(request, pk):
     service = own_service(request, pk)
+    if service.suspended and profile_for(request.user).free_expired:
+        messages.error(request, "Үнэгүй 14 хоног дууссан. Апп-аа асаахын тулд багцаа ахиулна уу.")
+        return redirect("billing")
     hosting.set_suspended(service, not service.suspended)
     messages.success(request, "Апп түр зогслоо." if service.suspended else "Апп дахин асаалаа.")
     audit(request, "service", "Апп-ыг түр зогсоов" if service.suspended else "Апп-ыг дахин асаав", service)
@@ -171,7 +174,7 @@ def service_database(request, pk):
         action = request.POST.get("action")
         if action == "create" and not hasattr(service, "database"):
             if not plan["database"]:
-                messages.error(request, "Өгөгдлийн сан Сурагч болон Pro багцад багтдаг.")
+                messages.error(request, "Өгөгдлийн сан Starter болон түүнээс дээш багцад багтдаг.")
             else:
                 try:
                     db = hosting.create_database(service)
@@ -198,7 +201,7 @@ def service_storage(request, pk):
         action = request.POST.get("action")
         if action == "create" and not hasattr(service, "bucket"):
             if not plan["storage_mb"]:
-                messages.error(request, "Файл хадгалах сан Сурагч болон Pro багцад багтдаг.")
+                messages.error(request, "Файл хадгалах сан Starter болон түүнээс дээш багцад багтдаг.")
             else:
                 hosting.create_bucket(service)
                 audit(request, "storage", "Файлын сан идэвхжүүлэв", service)

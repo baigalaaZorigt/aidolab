@@ -144,6 +144,17 @@ class Profile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
     plan = models.CharField(max_length=10, default="free")
     plan_until = models.DateTimeField(null=True, blank=True)
+    # Start of the free hosting period (first deploy on the free plan, or when a paid plan ran out).
+    free_started_at = models.DateTimeField(null=True, blank=True)
+
+    @property
+    def free_until(self):
+        from .plans import FREE_DAYS
+        return self.free_started_at + timezone.timedelta(days=FREE_DAYS) if self.free_started_at else None
+
+    @property
+    def free_expired(self) -> bool:
+        return self.effective_plan == "free" and self.free_until is not None and timezone.now() >= self.free_until
 
     @property
     def effective_plan(self) -> str:

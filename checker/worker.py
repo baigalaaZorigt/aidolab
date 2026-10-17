@@ -12,12 +12,13 @@ import urllib.request
 from django.db import transaction
 from django.utils import timezone
 
-from . import aws, domains
+from . import aws, domains, hosting
 from .models import Deploy, Job
 
 log = logging.getLogger(__name__)
 BUILD_TIMEOUT, ROLLOUT_TIMEOUT, HTTP_TIMEOUT = 20 * 60, 10 * 60, 3 * 60
 DOMAIN_SYNC_EVERY = 60
+FREE_EXPIRY_EVERY = 600
 
 
 class DeployFailed(Exception):
@@ -176,13 +177,24 @@ def sync_domains() -> None:
         log.exception("domain sync failed")
 
 
+def expire_free() -> None:
+    try:
+        if stopped := hosting.expire_free_apps():
+            log.info("stopped %d app(s) whose free period ended", stopped)
+    except Exception:
+        log.exception("free period check failed")
+
+
 def loop() -> None:
     recover()
-    last_sync = 0.0
+    last_sync = last_expiry = 0.0
     while True:
         if time.monotonic() - last_sync > DOMAIN_SYNC_EVERY:
             sync_domains()
             last_sync = time.monotonic()
+        if time.monotonic() - last_expiry > FREE_EXPIRY_EVERY:
+            expire_free()
+            last_expiry = time.monotonic()
         d = claim_deploy()
         if d:
             process(d)

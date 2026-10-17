@@ -5,7 +5,7 @@ from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
 from .models import ContactRequest
-from .plans import get_plan
+from .plans import PLANS, get_plan
 
 SERVICES = [
     {
@@ -13,7 +13,7 @@ SERVICES = [
         "name": "Онлайн болгох", "category": "Deploy & Hosting",
         "title": "Онлайн болгох (Deploy & Hosting)",
         "short": "Төслийг тань интернетэд байршуулж, тогтвортой, аюулгүй ажиллагааг хангана. "
-                 "Домэйн нэр, SSL сертификат тохируулна. Эхний сар үнэгүй.",
+                 "Домэйн нэр, SSL сертификат тохируулна. Эхний 14 хоног үнэгүй.",
         "lead": "Таны төслийг интернетэд найдвартай байршуулж, 24/7 тасралтгүй, тогтвортой ажиллагааг хангана.",
         "helps": [
             "ChatGPT эсвэл Claude-аас авсан кодоо интернетэд хэрхэн байршуулахаа мэдэхгүй байгаа үед",
@@ -27,7 +27,7 @@ SERVICES = [
             "Өгөгдлийн санг серверийн орчинд аюулгүй холбоно.",
             "Серверийн ажиллагааг тохируулж, вэб сайтыг бүрэн онлайн болгоно.",
         ],
-        "price": "Эхний сар ₮0", "price_note": "hosting",  # filled from plans.py
+        "price": "14 хоног ₮0", "price_note": "hosting",  # filled from plans.py
         "time": "24 – 48 цаг", "time_note": "Бэлэн файлууд хүлээн авснаас хойш",
         "note_icon": "🔒",
         "note": "Таны эх код болон өгөгдлийн сан зөвхөн таны эзэмшилд байна. "
@@ -117,11 +117,11 @@ TOPICS = {s["topic"] for s in SERVICES}
 
 
 def _context(request, **extra) -> dict:
-    student_price = get_plan("student")["price_label"]
-    hosting = f"Дараа нь сар бүр {student_price}-өөс"
+    starter_price = get_plan("starter")["price_label"]
+    hosting = f"Үнэгүй багцаас эхэлнэ, Starter сард {starter_price}"
     services = [{**s, "num": f"{i:02d}", "price_note": hosting if s["price_note"] == "hosting" else s["price_note"]}
                 for i, s in enumerate(SERVICES, 1)]
-    return {"services": services, "hosting_note": hosting, "student_price": student_price, "sent": request.GET.get("sent") == "1", **extra}
+    return {"services": services, "hosting_note": hosting, "plans": [get_plan(k) for k in PLANS], "sent": request.GET.get("sent") == "1", **extra}
 
 
 def home(request):

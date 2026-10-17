@@ -50,8 +50,8 @@ STORAGES = {
       {% if plan.storage_mb %}
       <form method="post">{% csrf_token %}<input type="hidden" name="action" value="create"><button class="btn primary">Идэвхжүүлэх</button></form>
       {% else %}
-      <a href="/billing/" class="btn primary">Сурагч багц руу шилжих</a>
-      <p class="help">Файл хадгалах сан Сурагч болон Pro багцад багтдаг.</p>
+      <a href="/billing/" class="btn primary">Багцаа ахиулах</a>
+      <p class="help">Файл хадгалах сан Starter болон түүнээс дээш багцад багтдаг.</p>
       {% endif %}
     </div>
   </div>

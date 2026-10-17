@@ -12,7 +12,7 @@ from django.views.decorators.http import require_POST
 from . import hosting
 from .audit import audit
 from .models import AuditEvent, DedicatedIP, Invoice, MentorRequest, profile_for
-from .plans import PLAN_DAYS, PLANS, get_plan
+from .plans import OLD_KEYS, PLAN_DAYS, PLANS, get_plan
 
 
 @login_required
@@ -30,9 +30,12 @@ def billing(request):
             return redirect("billing")
         invoice = Invoice.objects.create(user=request.user, plan=key, amount=PLANS[key]["price"])
         return redirect("invoice", pk=invoice.pk)
+    invoices = list(request.user.invoices.all()[:20])
+    for inv in invoices:
+        inv.plan_name = get_plan(inv.plan)["name"] if inv.plan in PLANS or inv.plan in OLD_KEYS else inv.plan
     return render(request, "checker/billing.html", {
         "plans": [get_plan(k) for k in PLANS], "profile": profile,
-        "current": profile.effective_plan, "invoices": request.user.invoices.all()[:20],
+        "current": get_plan(profile.effective_plan)["key"], "invoices": invoices,
     })
 
 

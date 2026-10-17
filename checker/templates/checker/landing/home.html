@@ -8,7 +8,7 @@
     <div class="hero-facts">
       <div><span class="label">Эх код</span><b>100% таны өмч</b></div>
       <div><span class="label">Эхний оношилгоо</span><b>Үнэгүй</b></div>
-      <div><span class="label">Hosting</span><b>Эхний сар ₮0</b></div>
+      <div><span class="label">Hosting</span><b>0₮-өөс эхэлнэ</b></div>
       <div><span class="label">Харилцаа</span><b>Монгол хэлээр</b></div>
     </div>
   </div>
@@ -74,19 +74,12 @@
 
 <section class="group more" id="pricing">
   <div class="container">
-    <span class="label">Үнэ</span>
-    <div class="grid-3">
-      <div class="card"><span class="label accent">Deploy & Hosting</span><h3>Онлайн болгох</h3>
-        <div class="price">₮0</div><span class="label">эхний сард · {{ hosting_note|lower }}</span>
-        <ul class="ticks"><li>Домэйн болон SSL холболт</li><li>Серверийн тохиргоо</li><li>24/7 тасралтгүй ажиллагаа</li></ul></div>
-      <div class="card featured"><span class="badge">Их сонгогддог</span><span class="label accent">Rescue & Finishing</span><h3>Код засвар & дуусгах</h3>
-        <div class="price">Төсөл бүрээр</div><span class="label">үнэгүй оношилгооны дараа тохирно</span>
-        <ul class="ticks"><li>AI кодын алдааг цэгцлэх</li><li>Database, нэвтрэх систем</li><li>Ажиллаж байгааг хамгаалах</li></ul></div>
-      <div class="card"><span class="label accent">Consulting</span><h3>Зөвлөх үйлчилгээ</h3>
-        <div class="price">Тогтмол</div><span class="label">45–60 минутын 1-on-1 уулзалт</span>
-        <ul class="ticks"><li>Код, архитектурын анализ</li><li>Зардал хэмнэх зөвлөгөө</li><li>100% буцаан олголтын баталгаа</li></ul></div>
+    <div class="group-head" style="border:0;padding-bottom:0">
+      <div><span class="label">Hosting-ийн үнэ</span><h2>Ашиглах серверийнхээ хэмжээгээр төлнө</h2></div>
+      <p>Апп тань ямар хүчин чадалтай сервер дээр ажиллахаас үнэ хамаарна. Төгрөгөөр, QPay-ээр төлнө.</p>
     </div>
-    <div class="note"><b>Hosting сануулга:</b> төлбөр хугацаандаа хийгдээгүй бол вэб түр зогсож, төлбөр хийгдмэгц шууд сэргэнэ. Таны эх кодыг хэзээ ч устгахгүй.</div>
+    <div style="margin-top:44px">{% include "checker/_plan_cards.html" %}</div>
+    <div class="note"><b>Код засвар, гүйцээн дуусгах, зөвлөх үйлчилгээ:</b> төсөл бүрээр, үнэгүй оношилгооны дараа үнээ тохирно. <a href="#services" style="text-decoration:underline">Үйлчилгээнүүдийг харах</a>. Төлбөр хугацаандаа хийгдээгүй бол апп түр зогсож, төлбөр хийгдмэгц сэргэнэ. Эх кодыг хэзээ ч устгахгүй.</div>
   </div>
 </section>
 
@@ -98,8 +91,10 @@
         <p>Кодоо эсвэл ChatGPT / Claude-аас авсан кодоо илгээхэд бид гацсан асуудлыг оношилж, ямар шийдэл хэрэгтэйг үнэгүй хэлж өгнө. Цааш засуулах эсэхээ та өөрөө шийднэ.</p></details>
       <details><summary>AI-ийн бичсэн код хэт замбараагүй болчихсон бол яах вэ?</summary>
         <p>Бид яг ийм кодтой өдөр бүр ажилладаг. AI кодын бүтэц, логикийг тайлж, хэрэгтэй хэсгийг цэгцлэн аюулгүй болгоно.</p></details>
-      <details><summary>Сурагч, суралцагчдад хөнгөлөлт бий юу?</summary>
-        <p>Тийм. Hosting-ийн «Сурагч» багц нь сард {{ student_price }} бөгөөд 3 апп, өгөгдлийн сан, файл хадгалах, өөрийн домэйнтэй. Нэвтэрсний дараа «Төлбөр» хэсгээс сонгоно.</p></details>
+      <details><summary>Багцаа дараа нь солиж болох уу?</summary>
+        <p>Тийм. Нэвтэрсний дараа «Төлбөр» хэсгээс хүссэн үедээ ахиулж, бууруулж болно. Шинэ серверийн хэмжээ апп-аа дахин deploy хийхэд үйлчилнэ.</p></details>
+      <details><summary>Үнэгүй багц хэр удаан ажиллах вэ?</summary>
+        <p>Анхны deploy хийснээс хойш 14 хоног. Дараа нь апп автоматаар зогсоно, гэхдээ код, тохиргоо тань устахгүй. Багц сонгомогц апп-аа дахин асааж болно.</p></details>
       <details><summary>Hosting-ийн төлбөрөө төлөхгүй бол код маань устах уу?</summary>
         <p>Үгүй. Вэб тань түр хаагдах ба төлбөр хийгдмэгц шууд ажиллана. Эх кодоо хүссэн үедээ авч болно.</p></details>
       <details><summary>Бүртгэлтэй хэрэглэгч хаанаас нэвтрэх вэ?</summary>

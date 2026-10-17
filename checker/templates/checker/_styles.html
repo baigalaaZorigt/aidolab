@@ -182,6 +182,10 @@
   .side-user .chev { color:var(--faint); }
   .dropdown.up { top:auto; bottom:calc(100% + 6px); left:0; right:0; min-width:0; }
   .menu-sep { border:0; border-top:1px solid var(--line); margin:4px 0; }
+  .free-note { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; padding:12px 16px; margin-bottom:24px; border:1px solid var(--accent-line); background:var(--accent-soft); border-radius:8px; font-size:14px; }
+  .free-note a { margin-left:auto; color:var(--accent); font-weight:600; }
+  .free-note.soon { border-color:color-mix(in srgb, var(--warn) 40%, transparent); background:var(--warn-soft); }
+  .free-note.over { border-color:color-mix(in srgb, var(--high) 40%, transparent); background:var(--risk-soft); }
   .mobile-only { display:none; }
   @media (max-width: 900px) { .mobile-only { display:block; } }
 </style>

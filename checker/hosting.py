@@ -11,8 +11,8 @@ import re
 from django.conf import settings
 from django.utils import timezone
 
-from .models import DEPLOY_SECONDS, Bucket, Database, Deploy, Job, Service
-from .plans import get_plan
+from .models import DEPLOY_SECONDS, AuditEvent, Bucket, Database, Deploy, Job, Profile, Service, profile_for
+from .plans import FREE_DAYS, get_plan
 
 MIN_DEPLOY_SCORE = 80
 
@@ -43,6 +43,8 @@ def deploy_logs(service: Service, number: int, trigger: str) -> list:
 
 
 def deploy_error(service: Service, plan: dict) -> str | None:
+    if profile_for(service.owner).free_expired:
+        return f"Үнэгүй {FREE_DAYS} хоног дууссан. Апп-аа үргэлжлүүлэн ажиллуулахын тулд багцаа ахиулна уу."
     if service.score < MIN_DEPLOY_SCORE:
         return f"Deploy хийхийн тулд оноо {MIN_DEPLOY_SCORE}-аас дээш байх ёстой. Эхлээд асуудлуудаа засаад дахин шалгуулаарай."
     deployed = Service.objects.filter(owner=service.owner, deploys__isnull=False).exclude(pk=service.pk).distinct().count()
@@ -53,6 +55,10 @@ def deploy_error(service: Service, plan: dict) -> str | None:
 
 def start_deploy(service: Service, trigger: str = "manual") -> Deploy:
     number = (service.deploys.count() or 0) + 1
+    profile = profile_for(service.owner)
+    if profile.effective_plan == "free" and not profile.free_started_at:
+        profile.free_started_at = timezone.now()
+        profile.save(update_fields=["free_started_at"])
     service.suspended = False
     service.save(update_fields=["suspended"])
     if is_aws():
@@ -71,6 +77,29 @@ def set_suspended(service: Service, suspended: bool) -> None:
     if is_aws():
         from . import aws
         aws.scale(service, 0 if suspended else 1)
+
+
+def expire_free_apps() -> int:
+    """Stop the apps of accounts whose free period is over. Run by the worker; returns how many stopped.
+
+    A paid plan that ran out (plan_until passed) also falls back to free: those accounts get
+    the FREE_DAYS grace period counted from the day the plan ended.
+    """
+    now = timezone.now()
+    lapsed = Profile.objects.exclude(plan="free").filter(plan_until__lt=now, free_started_at__isnull=True)
+    for profile in lapsed:
+        profile.free_started_at = profile.plan_until
+        profile.save(update_fields=["free_started_at"])
+    stopped = 0
+    for profile in Profile.objects.filter(free_started_at__lte=now - timezone.timedelta(days=FREE_DAYS)):
+        if not profile.free_expired:
+            continue
+        for service in Service.objects.filter(owner_id=profile.user_id, suspended=False, deploys__isnull=False).distinct():
+            set_suspended(service, True)
+            AuditEvent.objects.create(user_id=profile.user_id, service=service, service_name=service.name, kind="billing",
+                                      message=f"Үнэгүй {FREE_DAYS} хоног дууссан тул апп автоматаар зогслоо")
+            stopped += 1
+    return stopped
 
 
 def delete_service(service: Service) -> None:

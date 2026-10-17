@@ -47,8 +47,8 @@ DATABASES = {"default": dj_database_url.parse(os.environ["DATABASE_URL"])}</pre>
       {% if plan.database %}
       <form method="post">{% csrf_token %}<input type="hidden" name="action" value="create"><button class="btn primary">Өгөгдлийн сан үүсгэх</button></form>
       {% else %}
-      <a href="/billing/" class="btn primary">Сурагч багц руу шилжих</a>
-      <p class="help">Өгөгдлийн сан Сурагч болон Pro багцад багтдаг.</p>
+      <a href="/billing/" class="btn primary">Багцаа ахиулах</a>
+      <p class="help">Өгөгдлийн сан Starter болон түүнээс дээш багцад багтдаг.</p>
       {% endif %}
     </div>
   </div>

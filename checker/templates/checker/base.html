@@ -81,6 +81,13 @@
   {% endwith %}
 
   <main>
+    {% if free_days_left is not None %}
+    <div class="free-note {% if free_days_left == 0 %}over{% elif free_days_left <= 3 %}soon{% endif %}">
+      <span>{% if free_days_left == 0 %}<b>Үнэгүй 14 хоног дууссан.</b> Апп-ууд тань зогссон. Багц сонгоод дахин асаана уу.
+      {% else %}Үнэгүй хугацаа дуусахад <b>{{ free_days_left }} хоног</b> үлдлээ. Дараа нь апп автоматаар зогсоно.{% endif %}</span>
+      <a href="/billing/">Багц сонгох →</a>
+    </div>
+    {% endif %}
     {% for m in messages %}
     <div class="flash {% if m.tags == 'error' %}error{% else %}success{% endif %}">
       {% if m.tags == 'error' %}<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>

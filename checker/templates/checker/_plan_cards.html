@@ -1,0 +1,52 @@
+{% comment %}
+Plan cards, shared by the landing page (#pricing) and /billing/ so both always show the same plans.
+Data comes from plans.py. With `current` set (billing) each card has a select form; otherwise a sign-up link.
+Uses only CSS variables that exist in both the landing and app stylesheets.
+{% endcomment %}
+<style>
+  .pc-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:20px; align-items:stretch; }
+  .pc { position:relative; display:flex; flex-direction:column; background:var(--surface, var(--panel)); border:1px solid var(--line); border-radius:8px; padding:30px 26px 26px; }
+  .pc.popular { border:1.5px solid var(--accent); box-shadow:0 10px 28px #1f5aa81f; }
+  .pc.current { box-shadow:0 0 0 2px var(--accent); }
+  .pc-badge { position:absolute; top:-13px; left:50%; transform:translateX(-50%); background:var(--accent); color:#fff; font-size:12.5px; font-weight:600; padding:4px 14px; border-radius:4px; white-space:nowrap; }
+  .pc h3 { margin:0; font-size:21px; font-weight:600; letter-spacing:-.01em; }
+  .pc-price { font-size:34px; font-weight:700; letter-spacing:-.02em; margin:16px 0 0; line-height:1.1; }
+  .pc-per { color:var(--muted); font-size:14px; margin-top:4px; }
+  .pc-server { color:var(--accent); font-weight:700; font-size:15px; margin:14px 0 0; }
+  .pc-desc { color:var(--text-2, var(--muted)); font-size:15px; margin:12px 0 0; min-height:66px; }
+  .pc ul { list-style:none; margin:20px 0 0; padding:0; display:grid; gap:11px; flex:1; align-content:start; }
+  .pc li { display:grid; grid-template-columns:22px 1fr; color:var(--text-2, var(--muted)); font-size:14.5px; line-height:1.45; }
+  .pc li::before { content:"✓"; color:var(--accent); font-weight:700; }
+  .pc li.inc { color:var(--text); font-weight:500; }
+  .pc-cta { margin-top:24px; display:flex; }
+  .pc-cta form { display:flex; width:100%; }
+  .pc-cta .btn { width:100%; justify-content:center; }
+</style>
+<div class="pc-grid">
+  {% for p in plans %}
+  <div class="pc{% if p.popular %} popular{% endif %}{% if current and p.key == current %} current{% endif %}">
+    {% if current and p.key == current %}<span class="pc-badge">Одоогийн багц</span>{% elif p.popular %}<span class="pc-badge">Их сонгогддог</span>{% endif %}
+    <h3>{{ p.name }}</h3>
+    <div class="pc-price">{{ p.price_label }}</div>
+    <div class="pc-per">сар бүр</div>
+    <div class="pc-server">{{ p.server }} · {{ p.apps }} апп</div>
+    <p class="pc-desc">{{ p.desc }}</p>
+    <ul>
+      {% if p.includes %}<li class="inc">{{ p.includes }}</li>{% endif %}
+      {% for f in p.features %}<li>{{ f }}</li>{% endfor %}
+    </ul>
+    <div class="pc-cta">
+      {% if current %}
+        {% if p.key == current %}
+          <button class="btn" disabled>Идэвхтэй</button>
+        {% else %}
+          <form method="post" action="{% url 'billing' %}">{% csrf_token %}<input type="hidden" name="plan" value="{{ p.key }}">
+            <button class="btn {% if p.popular %}primary btn-accent{% endif %}">{% if p.price %}Сонгох{% else %}Үнэгүй рүү шилжих{% endif %}</button></form>
+        {% endif %}
+      {% else %}
+        <a href="{% url 'signup' %}" class="btn {% if p.popular %}btn-accent{% else %}btn-line{% endif %}">{% if p.price %}Эхлэх{% else %}Үнэгүй эхлэх{% endif %}</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>

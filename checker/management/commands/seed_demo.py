@@ -127,7 +127,7 @@ def seed_events(user, services, now):
         (150, "auth", "Бүртгэл үүсгэв", None),
         (149, "scan", "Repo шалгав — 52/100 оноо", todo),
         (120, "scan", "Дахин шалгав — 76/100 оноо", todo),
-        (100, "billing", "INV-демо төлөгдөж Сурагч багц идэвхжив (29,000₮)", None),
+        (100, "billing", "INV-демо төлөгдөж Standard багц идэвхжив (79,000₮)", None),
         (99, "env", "OPENAI_API_KEY хувьсагчийг нэмэв", todo),
         (98, "env", "FLASK_SECRET_KEY хувьсагчийг нэмэв", todo),
         (97, "database", f"Postgres өгөгдлийн сан {todo.database.name} үүсгэв", todo),
@@ -179,9 +179,9 @@ class Command(BaseCommand):
         seed_events(user, services, now)
 
         profile = profile_for(user)
-        profile.plan, profile.plan_until = "student", now + timezone.timedelta(days=PLAN_DAYS - 4)
+        profile.plan, profile.plan_until = "standard", now + timezone.timedelta(days=PLAN_DAYS - 4)
         profile.save()
-        inv = Invoice.objects.create(user=user, plan="student", amount=PLANS["student"]["price"], paid_at=now - timezone.timedelta(days=4))
+        inv = Invoice.objects.create(user=user, plan="standard", amount=PLANS["standard"]["price"], paid_at=now - timezone.timedelta(days=4))
         Invoice.objects.filter(pk=inv.pk).update(created_at=now - timezone.timedelta(days=4))
 
         MentorRequest.objects.create(
@@ -200,5 +200,5 @@ class Command(BaseCommand):
                                          question="Шалгалт gunicorn алга гэж байна. Юу хийх вэ?")
 
         self.stdout.write(self.style.SUCCESS(
-            f"{user.username}: {len(services)} үйлчилгээ, deploy, DB, файлын сан, домэйн, mentor, системийн лог, Сурагч багц нэмэгдлээ. "
+            f"{user.username}: {len(services)} үйлчилгээ, deploy, DB, файлын сан, домэйн, mentor, системийн лог, Standard багц нэмэгдлээ. "
             f"Ангийн 2 хүүхэд (нэвтрэх эрхгүй) /admin/-д харагдана."))
