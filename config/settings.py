@@ -1,5 +1,6 @@
 """Settings for Deploy Шалгагч. All secrets come from environment variables."""
 import os
+import urllib.parse
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -47,14 +48,30 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-# SQLite keeps the MVP simple. On Render's free plan the disk is ephemeral,
-# so saved services are lost on redeploy; point DATABASE_PATH at a disk to keep them.
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": os.environ.get("DATABASE_PATH", BASE_DIR / "db.sqlite3"),
+# Production: DATABASE_URL points at the dashboard's own database on the shared RDS
+# (deploy/move-db-to-rds.sh). Without it (local dev, tests) SQLite at DATABASE_PATH is used.
+if DATABASE_URL := os.environ.get("DATABASE_URL"):
+    _db = urllib.parse.urlsplit(DATABASE_URL)
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": _db.path.lstrip("/"),
+            "USER": urllib.parse.unquote(_db.username or ""),
+            "PASSWORD": urllib.parse.unquote(_db.password or ""),
+            "HOST": _db.hostname,
+            "PORT": _db.port or 5432,
+            "OPTIONS": {"sslmode": "require"},
+            "CONN_MAX_AGE": 60,
+            "CONN_HEALTH_CHECKS": True,
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": os.environ.get("DATABASE_PATH", BASE_DIR / "db.sqlite3"),
+        }
+    }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 30
 
