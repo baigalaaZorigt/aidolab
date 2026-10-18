@@ -271,7 +271,7 @@ def git_env(token: str | None = None) -> dict:
 
 def clone(url: str, dest: Path, token: str | None = None) -> None:
     if not GITHUB_URL_RE.match(url):
-        raise ScanError("Зөвхөн GitHub repo-гийн линк оруулна уу: https://github.com/нэр/repo")
+        raise ScanError("GitHub repo-гийн линк оруулна уу: https://github.com/нэр/repo")
     env = git_env(token)
     try:
         subprocess.run(
@@ -282,8 +282,8 @@ def clone(url: str, dest: Path, token: str | None = None) -> None:
     except subprocess.TimeoutExpired:
         raise ScanError("Repo татахад хэт удаж байна.")
     except subprocess.CalledProcessError:
-        raise ScanError("Repo-г татаж чадсангүй. Линк зөв эсэхийг шалгана уу. "
-                        "Private repo бол \"Private repo нэмэх\" товчоор aidolab-д уншиж болох эрх өгнө үү.")
+        raise ScanError("Repo-г татаж чадсангүй. Линк зөв эсэхийг шалгаад, дээрх \"Repo нэмэх\" товчоор "
+                        "энэ repo-г aidolab-д харуулахыг зөвшөөрнө үү.")
     size_mb = sum(f.stat().st_size for f in dest.rglob("*") if f.is_file()) / 1_000_000
     if size_mb > MAX_REPO_MB:
         raise ScanError(f"Repo хэт том байна ({size_mb:.0f}MB > {MAX_REPO_MB}MB).")

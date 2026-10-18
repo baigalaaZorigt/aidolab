@@ -88,8 +88,8 @@ def repo_token(user, url: str) -> str | None:
         return None
 
 
-def private_repos(user) -> list[dict]:
-    """Private repos the user shared with the app, in the same shape as oauth.github_repos."""
+def installed_repos(user) -> list[dict]:
+    """All repos (public or private) the user shared with the app, in the same shape as oauth.github_repos."""
     if not enabled():
         return []
     repos = []
@@ -100,6 +100,6 @@ def private_repos(user) -> list[dict]:
             log.exception("listing repos of installation %s failed", inst.installation_id)
             continue
         repos += [{"name": r["full_name"], "url": r["html_url"], "description": r.get("description") or "",
-                   "language": r.get("language") or "", "pushed": (r.get("pushed_at") or "")[:10], "private": True}
-                  for r in data.get("repositories", []) if r.get("private") and not r.get("archived")]
+                   "language": r.get("language") or "", "pushed": (r.get("pushed_at") or "")[:10]}
+                  for r in data.get("repositories", []) if not r.get("archived")]
     return repos

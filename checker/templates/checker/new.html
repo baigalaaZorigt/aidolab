@@ -47,12 +47,12 @@
   <div class="repos">
     <div class="repos-head">
       <b>Таны GitHub repo-ууд</b>
-      <span class="muted">{{ repos|length }} repo{% if private_count %} · {{ private_count }} private{% endif %}</span>
+      <span class="muted">{{ repos|length }} repo</span>
     </div>
-    {% if app_install_url %}
+    {% if app_enabled %}
     <div class="repos-head" style="background:var(--hover)">
-      <span class="muted">Private repo харагдахгүй байна уу? aidolab-д зөвхөн унших эрх өгөөд, аль repo-г харуулахаа өөрөө сонгоно.</span>
-      <a class="btn" href="{{ app_install_url }}">Private repo нэмэх</a>
+      <span class="muted">Хэрэгтэй repo тань жагсаалтад алга уу? GitHub дээр сонгоод нэмнэ. aidolab кодыг тань зөвхөн уншина.</span>
+      <a class="btn" href="{% url 'github_connect' %}">Repo нэмэх</a>
     </div>
     {% endif %}
     {% if repos %}
@@ -61,7 +61,7 @@
       {% for r in repos %}
       <div class="repo" data-name="{{ r.name|lower }}">
         <div>
-          <div class="repo-name mono">{{ r.name }}{% if r.private %} <span class="tag" style="margin-left:6px">Private</span>{% endif %}</div>
+          <div class="repo-name mono">{{ r.name }}</div>
           {% if r.description %}<div class="repo-desc">{{ r.description|truncatechars:90 }}</div>{% endif %}
           <div class="repo-meta">{% if r.language %}{{ r.language }} · {% endif %}{{ r.pushed }}</div>
         </div>
@@ -74,10 +74,10 @@
     {% endif %}
   </div>
   <div class="or-line">эсвэл линкээр</div>
-  {% elif OAUTH.github %}
+  {% elif app_enabled or OAUTH.github %}
   <div class="connect">
     <div><b>GitHub-аа холбох</b><p>Нэг удаа холбоход repo-ууд тань энд жагсаалтаар гарч, линк хуулах шаардлагагүй болно.</p></div>
-    <a class="btn" href="{% url 'oauth_start' 'github' %}?next=/new/">GitHub холбох</a>
+    <a class="btn" href="{% if app_enabled %}{% url 'github_connect' %}{% else %}{% url 'oauth_start' 'github' %}?next=/new/{% endif %}">GitHub холбох</a>
   </div>
   {% endif %}
 
@@ -89,7 +89,7 @@
         <svg class="i" viewBox="0 0 24 24"><path d="M9 19c-4 1.5-4-2-6-2.5M15 21v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 00-1.3-3.2 4.2 4.2 0 00-.1-3.2s-1-.3-3.4 1.3a11.5 11.5 0 00-6.2 0C6.6 2.8 5.6 3.1 5.6 3.1a4.2 4.2 0 00-.1 3.2A4.6 4.6 0 004.2 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg>
         <input id="repo_url" name="repo_url" type="url" required placeholder="https://github.com/нэр/repo" value="{{ repo_url }}"{% if repos is None %} autofocus{% endif %}>
       </div>
-      <div class="help">Public repo · 50MB хүртэл</div>
+      <div class="help">50MB хүртэл</div>
     </div>
     <button type="submit" class="btn primary" data-scan-btn><svg class="i" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg> Шалгах</button>
   </form>

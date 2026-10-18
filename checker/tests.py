@@ -479,9 +479,21 @@ class GitHubAppTests(TestCase):
         self.assertEqual(github_app.repo_token(self.user, "https://github.com/bat/diary"), "ghs_secret")
         self.assertIsNone(github_app.repo_token(self.user, "https://github.com/other/diary"))
 
-    def test_private_repos_are_listed(self, *_):
+    def test_one_repo_list_without_public_private_split(self, *_):
         GitHubInstallation.objects.create(user=self.user, installation_id=77, account_login="Bat")
-        self.assertEqual([r["name"] for r in github_app.private_repos(self.user)], ["Bat/diary"])
+        public = [{"name": "Bat/todo", "url": "https://github.com/Bat/todo", "description": "", "language": "", "pushed": ""},
+                  {"name": "Bat/blog", "url": "https://github.com/Bat/blog", "description": "", "language": "", "pushed": ""}]
+        with mock.patch("checker.views.github_repos", return_value=public):
+            html = self.client.get("/new/").content.decode()
+        for name in ("Bat/diary", "Bat/todo", "Bat/blog"):
+            self.assertEqual(html.count(f">{name}<"), 1)
+        self.assertNotIn("rivate", html)
+
+    def test_connect_logs_in_with_github_first(self, *_):
+        SocialAccount.objects.all().delete()
+        self.assertIn("/oauth/github/start/", self.client.get("/github/connect/")["Location"])
+        SocialAccount.objects.create(user=self.user, provider="github", uid="42", login="Bat")
+        self.assertIn("github.com/apps/aidolab-test", self.client.get("/github/connect/")["Location"])
 
     def test_scan_clones_with_token_kept_out_of_argv(self, *_):
         GitHubInstallation.objects.create(user=self.user, installation_id=77, account_login="Bat")

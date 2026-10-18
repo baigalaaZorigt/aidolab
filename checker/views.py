@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -92,15 +93,24 @@ def new_service(request):
 
 
 def repo_choices(user) -> dict:
-    """Repos to pick on /new/: public ones via the GitHub login, private ones via the GitHub App."""
+    """Repos to pick on /new/, as one list: repos shared with the GitHub App plus the
+    public repos seen through the GitHub login. Students never have to know which is which."""
     repos = github_repos(user)
-    private = github_app.private_repos(user)
-    if repos is not None or private:
-        public_urls = {r["url"] for r in repos or []}
-        repos = [r for r in private if r["url"] not in public_urls] + (repos or [])
-    github_linked = user.social_accounts.filter(provider="github").exists()
-    return {"repos": repos, "private_count": len(private),
-            "app_install_url": github_app.install_url() if github_app.enabled() and github_linked else ""}
+    shared = github_app.installed_repos(user)
+    if repos is not None or shared:
+        shared_urls = {r["url"] for r in shared}
+        repos = shared + [r for r in repos or [] if r["url"] not in shared_urls]
+    return {"repos": repos, "app_enabled": github_app.enabled()}
+
+
+@login_required
+def github_connect(request):
+    """One "connect GitHub" step: log in with GitHub if needed, then install the app (pick repos)."""
+    if not github_app.enabled():
+        return redirect("new")
+    if not request.user.social_accounts.filter(provider="github").exists():
+        return redirect(reverse("oauth_start", args=["github"]) + "?next=" + reverse("github_connect"))
+    return redirect(github_app.install_url())
 
 
 @login_required
@@ -118,13 +128,12 @@ def github_installed(request):
     owner = inst.get("account") or {}
     # Only the GitHub account linked to this user may be connected (the id in the URL is not a secret).
     if account is None or str(owner.get("id")) != account.uid:
-        messages.error(request, "Энэ GitHub App таны холбосон GitHub бүртгэл дээр суугаагүй байна. "
-                                "Өөрийн GitHub бүртгэлээр нэвтэрч суулгана уу.")
+        messages.error(request, "Өөр GitHub бүртгэл дээр холбогдсон байна. Өөрийн GitHub бүртгэлээр дахин холбоно уу.")
         return redirect("new")
     GitHubInstallation.objects.update_or_create(
         installation_id=installation_id, defaults={"user": request.user, "account_login": owner.get("login", "")})
-    audit(request, "auth", "Private repo уншихыг зөвшөөрөв (GitHub App)")
-    messages.success(request, "Private repo-ууд тань холбогдлоо.")
+    audit(request, "auth", "GitHub repo уншихыг зөвшөөрөв (GitHub App)")
+    messages.success(request, "GitHub холбогдлоо. Repo-гоо сонгоод шалгуулаарай.")
     return redirect("new")
 
 

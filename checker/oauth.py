@@ -171,7 +171,9 @@ def callback(request, provider):
     user.save()
     _link(user, provider, profile)
     messages.success(request, f"Тавтай морил, {name}! Эхний repo-гоо шалгуулаарай.")
-    return _log_in(request, user, reverse("new"), f"{label}-ээр бүртгэл үүсгэв")
+    # A new user goes to /new/ unless they came from a specific step (e.g. /github/connect/).
+    next_url = saved["next"] if saved["next"] != "/dashboard/" else reverse("new")
+    return _log_in(request, user, next_url, f"{label}-ээр бүртгэл үүсгэв")
 
 
 def github_repos(user) -> list[dict] | None:

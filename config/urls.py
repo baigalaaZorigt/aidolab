@@ -26,6 +26,7 @@ urlpatterns = [
     path("databases/", views.databases_list, name="databases"),
     path("storage/", views.storage_list, name="storage"),
     path("new/", views.new_service, name="new"),
+    path("github/connect/", views.github_connect, name="github_connect"),
     path("github/installed/", views.github_installed, name="github_installed"),
     path("services/<int:pk>/", views.service_overview, name="service"),
     path("services/<int:pk>/events/", views.service_events, name="service_events"),
