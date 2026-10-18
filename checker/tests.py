@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from . import domains, github_app, hosting, scanner, worker
+from . import domains, github_app, hosting, oauth, scanner, worker
 from .models import ContactRequest, CustomDomain, Deploy, EnvVar, GitHubInstallation, Job, Service, SocialAccount
 from .plans import get_plan
 
@@ -489,6 +489,12 @@ class GitHubAppTests(TestCase):
             self.assertEqual(html.count(f">{name}<"), 1)
         self.assertNotIn("rivate", html)
 
+    def test_empty_list_shows_one_message(self, *_):
+        with mock.patch("checker.views.github_repos", return_value=[]):
+            html = self.client.get("/new/").content.decode()
+        self.assertEqual(html.count("Repo нэмэх"), 1)
+        self.assertNotIn("Хэрэгтэй repo тань жагсаалтад алга уу", html)
+
     def test_connect_logs_in_with_github_first(self, *_):
         SocialAccount.objects.all().delete()
         self.assertIn("/oauth/github/start/", self.client.get("/github/connect/")["Location"])
@@ -504,6 +510,19 @@ class GitHubAppTests(TestCase):
         self.assertNotIn("ghs_secret", " ".join(clone.args[0]))
         self.assertIn("Authorization: Basic", clone.kwargs["env"]["GIT_CONFIG_VALUE_0"])
         self.assertTrue(Service.objects.filter(repo_url="https://github.com/Bat/diary").exists())
+
+
+class RepoListTests(TestCase):
+    def test_revoked_token_falls_back_to_public_listing(self):
+        user = User.objects.create_user("z@x.mn", password="x")
+        SocialAccount.objects.create(user=user, provider="github", uid="1", login="bat", token="revoked")
+
+        def api(url, data=None, token=""):
+            if token:
+                raise oauth.OAuthError("401")
+            return [{"full_name": "bat/todo", "html_url": "https://github.com/bat/todo"}]
+        with mock.patch("checker.oauth._http", side_effect=api):
+            self.assertEqual([r["name"] for r in oauth.github_repos(user)], ["bat/todo"])
 
 
 class GitEnvTests(TestCase):

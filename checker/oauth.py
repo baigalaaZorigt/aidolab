@@ -186,7 +186,12 @@ def github_repos(user) -> list[dict] | None:
     try:
         repos = _http(url, token=account.token)
     except OAuthError:
-        return []
+        # The saved token can be revoked on GitHub (401). Public repos don't need it,
+        # so try once without; the next GitHub login saves a fresh token.
+        try:
+            repos = _http(url)
+        except OAuthError:
+            return []
     return [{"name": r["full_name"], "url": r["html_url"], "description": r.get("description") or "",
              "language": r.get("language") or "", "pushed": (r.get("pushed_at") or "")[:10]}
             for r in repos if isinstance(r, dict) and not r.get("private") and not r.get("archived")]

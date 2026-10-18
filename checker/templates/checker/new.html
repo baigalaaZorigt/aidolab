@@ -49,7 +49,7 @@
       <b>Таны GitHub repo-ууд</b>
       <span class="muted">{{ repos|length }} repo</span>
     </div>
-    {% if app_enabled %}
+    {% if app_enabled and repos %}
     <div class="repos-head" style="background:var(--hover)">
       <span class="muted">Хэрэгтэй repo тань жагсаалтад алга уу? GitHub дээр сонгоод нэмнэ. aidolab кодыг тань зөвхөн уншина.</span>
       <a class="btn" href="{% url 'github_connect' %}">Repo нэмэх</a>
@@ -70,7 +70,14 @@
       {% endfor %}
     </div>
     {% else %}
-    <p class="muted" style="padding:16px 18px;margin:0">Repo олдсонгүй, эсвэл GitHub хариу өгсөнгүй. Доор линкээ шууд оруулж болно.</p>
+    <div class="connect" style="border:0;margin:0;border-radius:0">
+      {% if app_enabled %}
+      <div><b>Repo алга байна</b><p>GitHub дээрээ aidolab-д харуулах repo-гоо сонгоно уу. aidolab кодыг тань зөвхөн уншина.</p></div>
+      <a class="btn" href="{% url 'github_connect' %}">Repo нэмэх</a>
+      {% else %}
+      <p>Repo олдсонгүй. Доор линкээ шууд оруулж болно.</p>
+      {% endif %}
+    </div>
     {% endif %}
   </div>
   <div class="or-line">эсвэл линкээр</div>
