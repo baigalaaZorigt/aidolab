@@ -9,6 +9,7 @@ import random
 import re
 
 from django.conf import settings
+from django.db.models import Max
 from django.utils import timezone
 
 from .models import DEPLOY_SECONDS, AuditEvent, Bucket, Database, Deploy, Job, Profile, Service, profile_for
@@ -27,12 +28,14 @@ def deploy_logs(service: Service, number: int, trigger: str) -> list:
                               ("S3_BUCKET, S3_PREFIX", hasattr(service, "bucket"))) if on]
     env_line = f"==> Орчны хувьсагч: {env_count} ширхэг" + (f" + {', '.join(extras)}" if extras else "")
     title = "Өмнөх хувилбар руу буцааж байна" if trigger == "rollback" else "Deploy эхэллээ"
+    setup, install = (("Node.js 22 орчин бэлдэж байна", "npm ci && npm run build") if service.runtime == "node"
+                      else ("Python 3.12 орчин бэлдэж байна", "pip install -r requirements.txt"))
     return [
         [0, f"==> #{number} {title} · {service.repo_url} (main)"],
         [1, "==> Repo-г татаж байна…"],
         [3, f"==> Аюулгүй байдлын шалгалт: {service.score}/100 ✓"],
-        [4, "==> Python 3.12 орчин бэлдэж байна"],
-        [6, "==> pip install -r requirements.txt"],
+        [4, f"==> {setup}"],
+        [6, f"==> {install}"],
         [12, "    Сангууд амжилттай суулаа"],
         [14, f"==> Image бүтээж байна: aidolab/{service.slug}:{number}"],
         [18, env_line],
@@ -55,7 +58,7 @@ def deploy_error(service: Service, plan: dict) -> str | None:
 
 
 def start_deploy(service: Service, trigger: str = "manual") -> Deploy:
-    number = (service.deploys.count() or 0) + 1
+    number = (service.deploys.aggregate(n=Max("number"))["n"] or 0) + 1
     profile = profile_for(service.owner)
     if profile.effective_plan == "free" and not profile.free_started_at:
         profile.free_started_at = timezone.now()

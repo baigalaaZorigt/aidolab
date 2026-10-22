@@ -31,6 +31,7 @@ class Service(models.Model):
     # Auto-deploy: the worker redeploys when the repo's default branch gets a new commit.
     auto_deploy = models.BooleanField(default=True)
     last_commit = models.CharField(max_length=40, blank=True)  # default-branch HEAD at the last scan
+    runtime = models.CharField(max_length=10, choices=[("python", "Python"), ("node", "Node.js")], default="python")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

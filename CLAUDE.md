@@ -39,6 +39,7 @@ AI ашиглан (vibe coding) апп хийж сурч буй хүмүүс о�
   - `.env` орсон эсэх, `.gitignore`, `DEBUG = True`, `SECRET_KEY`, `ALLOWED_HOSTS = ['*']`
   - `requirements.txt`: хувилбар тогтоосон эсэх, gunicorn/uvicorn байгаа эсэх, OSV API-аар эмзэг байдал
   - `bandit` (medium болон түүнээс дээш)
+  - **Node.js** (`detect_runtime`: `package.json` байгаа, Python файл/`requirements.txt` байхгүй): `package.json`-ийн `start`/`next`, lock файл, шууд хамаарлыг `package-lock.json`-оос OSV (npm)-ээр. `Service.runtime`; `infra/buildspec.yml` `node:22-slim` Dockerfile үүсгэнэ (суулгах → `build` → `npm start`, PORT 8000)
   - Оноо: 100-аас хасна (high −15, medium −7, low −3; нэг төрлийн асуудал 2-оос олон удаа хасагдахгүй)
 - `checker/ai.py` — Claude (`claude-opus-5-5`, structured output, `fallbacks: "default"`) илэрцийг монголоор тайлбарлана. `ANTHROPIC_API_KEY` байхгүй эсвэл алдаа гарвал `None` буцааж, зөвлөгөөгүйгээр үр дүнг харуулна.
 - `checker/views.py` — dashboard, new, үйлчилгээний табууд, rescan, delete. Бүх view `login_required`, зөвхөн өөрийн үйлчилгээг харна.

@@ -226,11 +226,11 @@ class TeardownTests(TestCase):
         from . import aws
         ecr = client.return_value
         ecr.get_paginator.return_value.paginate.return_value = [{"imageIds": [
-            {"imageTag": "s1-1"}, {"imageTag": "s1-2"}, {"imageTag": "s12-1"}]}]
+            {"imageTag": "s1-1"}, {"imageTag": "s1-2-a1b2c3"}, {"imageTag": "s12-1"}, {"imageTag": "s12-1-a1b2c3"}]}]
         with override_settings(AIDOLAB={"ECR_REPO": "1.dkr.ecr.r.amazonaws.com/aidolab-apps"}):
             aws.delete_images(1)
         ecr.batch_delete_image.assert_called_once_with(
-            repositoryName="aidolab-apps", imageIds=[{"imageTag": "s1-1"}, {"imageTag": "s1-2"}])
+            repositoryName="aidolab-apps", imageIds=[{"imageTag": "s1-1"}, {"imageTag": "s1-2-a1b2c3"}])
 
     @mock.patch("checker.aws.client")
     def test_redeploy_keeps_two_newest_versions(self, client):
@@ -528,3 +528,57 @@ class RepoListTests(TestCase):
 class GitEnvTests(TestCase):
     def test_no_token_no_header(self):
         self.assertNotIn("GIT_CONFIG_COUNT", scanner.git_env(None))
+
+
+class NodeScanTests(TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+
+    def write(self, rel, content):
+        path = self.root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content if isinstance(content, str) else json.dumps(content))
+
+    def next_app(self, scripts=None):
+        self.write("package.json", {"scripts": scripts or {}, "dependencies": {"next": "15.0.0", "react": "latest"}})
+        self.write("package-lock.json", {"lockfileVersion": 3, "packages": {
+            "": {"name": "app"}, "node_modules/next": {"version": "15.0.0"},
+            "node_modules/react": {"version": "19.0.0"}, "node_modules/scheduler": {"version": "0.25.0"}}})
+
+    def test_runtime_detection(self):
+        self.next_app()
+        self.assertEqual(scanner.detect_runtime(self.root), "node")
+        self.write("node_modules/x/build.py", "")  # vendored Python does not make it a Python app
+        self.assertEqual(scanner.detect_runtime(self.root), "node")
+        self.write("requirements.txt", "flask==3.0.0")
+        self.assertEqual(scanner.detect_runtime(self.root), "python")
+
+    def test_next_app_has_start_command(self):
+        self.next_app()
+        self.assertTrue(scanner.has_start_command(self.root))
+        self.write("package.json", {"scripts": {"dev": "node index.js"}})
+        self.assertFalse(scanner.has_start_command(self.root))
+        self.assertIn("package.json", [f.file for f in scanner.check_hosting(self.root)])
+
+    def test_osv_checks_direct_npm_dependencies(self):
+        self.next_app()
+        response = mock.MagicMock()
+        response.__enter__.return_value = response
+        response.read.return_value = json.dumps({"results": [{"vulns": [{"id": "GHSA-1"}]}, {}]}).encode()
+        with mock.patch("checker.scanner.urllib.request.urlopen", return_value=response) as urlopen:
+            findings = scanner.check_node_dependencies(self.root)
+        sent = json.loads(urlopen.call_args.args[0].data)["queries"]
+        self.assertEqual([(q["package"]["name"], q["package"]["ecosystem"]) for q in sent],
+                         [("next", "npm"), ("react", "npm")])
+        self.assertEqual({f.id for f in findings}, {"unpinned", "vulnerable_dep"})
+        self.assertIn("next@15.0.0", next(f.title for f in findings if f.id == "vulnerable_dep"))
+
+    def test_missing_lockfile(self):
+        self.write("package.json", {"scripts": {"start": "node index.js"}})
+        self.assertEqual([f.id for f in scanner.check_node_dependencies(self.root)], ["no_lockfile"])
+
+    def test_secrets_in_tsx_but_not_next_build_output(self):
+        key = "Zq8vLm2pRt7wXk"  # generic match: only applies to CODE_SUFFIXES such as .tsx
+        self.write("app/page.tsx", f'const apiKey = "{key}";')
+        self.write(".next/server/page.js", f'const apiKey = "{key}";')
+        self.assertEqual([f.file for f in scanner.check_secrets(self.root)], ["app/page.tsx"])

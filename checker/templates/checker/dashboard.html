@@ -145,7 +145,7 @@
           <span><a href="/services/{{ s.pk }}/" class="mono">{{ s.name }}</a><span class="sub-url mono">{{ s.slug }}.aidolab.mn</span></span></span></td>
         <td><span class="chip {{ s.deploy_state }}">{% if s.deploy_state == "live" %}<svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>{% elif s.deploy_state == "building" %}<span class="pulse"></span>{% endif %}{{ s.deploy_label }}</span></td>
         <td class="c-score"><span class="mini-score"><span class="chip {{ s.status }}">{{ s.score }}/100</span><span class="bar"><i class="{{ s.status }}" style="width:{{ s.score }}%"></i></span></span></td>
-        <td class="c-runtime"><span class="tag">Python</span></td>
+        <td class="c-runtime"><span class="tag">{{ s.get_runtime_display }}</span></td>
         <td class="muted">{{ s.updated_ago }}</td>
         <td class="c-menu">
           <details class="menu">

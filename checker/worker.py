@@ -20,7 +20,7 @@ from .scanner import ScanError, remote_head
 from .views import run_scan
 
 log = logging.getLogger(__name__)
-BUILD_TIMEOUT, ROLLOUT_TIMEOUT, HTTP_TIMEOUT = 20 * 60, 10 * 60, 3 * 60
+BUILD_TIMEOUT, ROLLOUT_TIMEOUT, HTTP_TIMEOUT = 30 * 60, 10 * 60, 3 * 60
 DOMAIN_SYNC_EVERY = 60
 FREE_EXPIRY_EVERY = 600
 PUSH_CHECK_EVERY = 60

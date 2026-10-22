@@ -17,11 +17,11 @@ from pathlib import Path
 GITHUB_URL_RE = re.compile(r"^https://github\.com/[\w.-]+/[\w.-]+?(\.git)?/?$")
 MAX_REPO_MB = 50
 MAX_FILE_BYTES = 1_000_000
-SKIP_DIRS = {".git", ".venv", "venv", "env", "node_modules", "__pycache__", "site-packages"}
+SKIP_DIRS = {".git", ".venv", "venv", "env", "node_modules", "__pycache__", "site-packages", ".next"}
 
 SEVERITY_PENALTY = {"high": 15, "medium": 7, "low": 3}
 # Generic "password = '...'" matches are only meaningful in code/config, not in docs.
-CODE_SUFFIXES = {".py", ".js", ".ts", ".json", ".yml", ".yaml", ".toml", ".ini", ".cfg", ".env", ".sh"}
+CODE_SUFFIXES = {".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".json", ".yml", ".yaml", ".toml", ".ini", ".cfg", ".env", ".sh"}
 
 
 @dataclass
@@ -133,7 +133,32 @@ FILE_WRITE_RE = re.compile(r"""\bopen\([^)]*,\s*['"](w|a|wb|ab|w\+)['"]|\.save\(
 SQLITE_RE = re.compile(r"django\.db\.backends\.sqlite3|sqlite3\.connect\(|sqlite:///")
 
 
+def package_json(root: Path) -> dict | None:
+    try:
+        data = json.loads((root / "package.json").read_text(errors="ignore"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def detect_runtime(root: Path) -> str:
+    """"node" for a JavaScript app (package.json, no Python code), otherwise "python"."""
+    if package_json(root) is None or (root / "requirements.txt").exists():
+        return "python"
+    has_python = any(p for p in root.rglob("*.py") if not any(part in SKIP_DIRS for part in p.parts))
+    return "python" if has_python else "node"
+
+
+def node_start_script(pkg: dict) -> bool:
+    scripts = pkg.get("scripts") if isinstance(pkg.get("scripts"), dict) else {}
+    deps = {**(pkg.get("dependencies") or {}), **(pkg.get("devDependencies") or {})}
+    # buildspec.yml falls back to "next start" for Next.js apps without a start script.
+    return bool(scripts.get("start")) or "next" in deps
+
+
 def has_start_command(root: Path) -> bool:
+    if detect_runtime(root) == "node":
+        return (root / "Dockerfile").exists() or node_start_script(package_json(root))
     procfile = root / "Procfile"
     if procfile.exists() and re.search(r"(?m)^web:", procfile.read_text(errors="ignore")):
         return True
@@ -148,8 +173,12 @@ def has_start_command(root: Path) -> bool:
 def check_hosting(root: Path) -> list[Finding]:
     findings = []
     if not has_start_command(root):
-        findings.append(Finding("no_start_command", "medium", "Апп-ыг эхлүүлэх команд олдсонгүй",
-                                "Procfile", 0, "Procfile файлд жишээ нь: web: gunicorn app:app --bind 0.0.0.0:$PORT"))
+        if detect_runtime(root) == "node":
+            findings.append(Finding("no_start_command", "medium", "Апп-ыг эхлүүлэх команд олдсонгүй", "package.json", 0,
+                                    'package.json-ийн "scripts" хэсэгт "start" нэмнэ үү, жишээ нь: "start": "node server.js"'))
+        else:
+            findings.append(Finding("no_start_command", "medium", "Апп-ыг эхлүүлэх команд олдсонгүй",
+                                    "Procfile", 0, "Procfile файлд жишээ нь: web: gunicorn app:app --bind 0.0.0.0:$PORT"))
     uses_database_url = False
     sqlite_hits, write_hits = [], []
     for path, text in iter_text_files(root):
@@ -212,26 +241,62 @@ def check_dependencies(root: Path) -> list[Finding]:
     return findings
 
 
-def query_osv(pinned: list[tuple[str, str]], rel: str) -> list[Finding]:
+LOCKFILES = ("package-lock.json", "yarn.lock", "pnpm-lock.yaml")
+OSV_BATCH = 1000  # OSV querybatch limit
+
+
+def parse_package_lock(root: Path, names) -> list[tuple[str, str]]:
+    """Installed versions of `names` (the package.json dependencies) from package-lock.json v2/v3.
+    Only direct dependencies are checked: those are the ones a beginner can upgrade."""
+    try:
+        packages = json.loads((root / "package-lock.json").read_text(errors="ignore")).get("packages") or {}
+    except (OSError, ValueError, AttributeError):
+        return []
+    pinned = []
+    for name in names:
+        info = packages.get(f"node_modules/{name}")
+        if isinstance(info, dict) and isinstance(info.get("version"), str) and not info.get("link"):
+            pinned.append((name, info["version"]))
+    return pinned
+
+
+def check_node_dependencies(root: Path) -> list[Finding]:
+    pkg = package_json(root) or {}
+    findings = []
+    if not any((root / f).exists() for f in LOCKFILES):
+        findings.append(Finding("no_lockfile", "low", "Lock файл (package-lock.json) байхгүй — сангийн хувилбар тогтохгүй",
+                                "package.json", detail="npm install хийхэд үүсэх package-lock.json-ийг commit хийнэ үү."))
+    deps = {**(pkg.get("devDependencies") or {}), **(pkg.get("dependencies") or {})}
+    loose = [n for n, v in deps.items() if isinstance(v, str) and v.strip() in ("", "*", "latest", "x")]
+    if loose:
+        findings.append(Finding("unpinned", "low", "Сангийн хувилбар тогтоогоогүй (latest, *)", "package.json",
+                                detail=", ".join(loose[:10])))
+    findings += query_osv(parse_package_lock(root, deps), "package-lock.json", ecosystem="npm", sep="@")
+    return findings
+
+
+def query_osv(pinned: list[tuple[str, str]], rel: str, ecosystem: str = "PyPI", sep: str = "==") -> list[Finding]:
     if not pinned:
         return []
-    body = json.dumps({"queries": [
-        {"package": {"name": n, "ecosystem": "PyPI"}, "version": v} for n, v in pinned
-    ]}).encode()
-    req = urllib.request.Request("https://api.osv.dev/v1/querybatch", data=body,
-                                 headers={"Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            results = json.load(resp)["results"]
-    except Exception:
-        return [Finding("osv_unavailable", "low", "Сангийн эмзэг байдлын санд холбогдож чадсангүй", rel)]
+    results = []
+    for i in range(0, len(pinned), OSV_BATCH):
+        body = json.dumps({"queries": [
+            {"package": {"name": n, "ecosystem": ecosystem}, "version": v} for n, v in pinned[i:i + OSV_BATCH]
+        ]}).encode()
+        req = urllib.request.Request("https://api.osv.dev/v1/querybatch", data=body,
+                                     headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                results += json.load(resp)["results"]
+        except Exception:
+            return [Finding("osv_unavailable", "low", "Сангийн эмзэг байдлын санд холбогдож чадсангүй", rel)]
     findings = []
     for (name, version), result in zip(pinned, results):
         vulns = result.get("vulns") or []
         if vulns:
             ids = ", ".join(v["id"] for v in vulns[:5])
             findings.append(Finding("vulnerable_dep", "high" if len(vulns) >= 3 else "medium",
-                                    f"{name}=={version} хувилбарт {len(vulns)} мэдэгдэж буй эмзэг байдал бий",
+                                    f"{name}{sep}{version} хувилбарт {len(vulns)} мэдэгдэж буй эмзэг байдал бий",
                                     rel, detail=ids))
     return findings
 
@@ -331,10 +396,12 @@ def scan_repo(url: str, token: str | None = None) -> dict:
         clone(url, root, token)
         commit = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"],
                                 capture_output=True, text=True, timeout=10).stdout.strip()
+        runtime = detect_runtime(root)
+        deps = check_node_dependencies(root) if runtime == "node" else check_dependencies(root)
         findings = (check_secrets(root) + check_repo_files(root) + check_hosting(root)
-                    + check_dependencies(root) + check_bandit(root))
+                    + deps + check_bandit(root))
     order = {"high": 0, "medium": 1, "low": 2}
     findings = dedupe(findings)
     findings.sort(key=lambda f: (order.get(f.severity, 3), f.file, f.line))
     return {"url": url, "score": score(findings), "findings": [asdict(f) for f in findings],
-            "commit": commit}
+            "commit": commit, "runtime": runtime}

@@ -12,6 +12,7 @@ Student code never runs on the gateway; this module only calls AWS APIs.
 """
 import json
 import re
+import secrets
 import time
 from functools import cache
 
@@ -49,7 +50,8 @@ def param_prefix(service_pk: int) -> str:
 
 def start_build(service, number: int, token: str | None = None) -> tuple[str, str]:
     """`token`: 1-hour read-only GitHub App token for a private repo; buildspec.yml uses it only to clone."""
-    tag = f"s{service.pk}-{number}"
+    # ECR tags are immutable; the suffix keeps a retried or re-numbered deploy from hitting an existing tag.
+    tag = f"s{service.pk}-{number}-{secrets.token_hex(3)}"
     env = [{"name": "REPO_URL", "value": service.repo_url, "type": "PLAINTEXT"},
            {"name": "IMAGE_TAG", "value": tag, "type": "PLAINTEXT"},
            {"name": "GITHUB_TOKEN", "value": token or "", "type": "PLAINTEXT"}]
@@ -264,11 +266,11 @@ def teardown(payload: dict) -> None:
 
 
 def delete_images(pk: int, keep: int = 0) -> None:
-    """Image tags are s<pk>-<deploy number> (start_build). Keeps the `keep` newest."""
+    """Image tags are s<pk>-<deploy number>[-<suffix>] (start_build). Keeps the `keep` newest."""
     ecr, repo = client("ecr"), cfg("ECR_REPO").split("/", 1)[1]
     ids = []
     for page in ecr.get_paginator("list_images").paginate(repositoryName=repo, filter={"tagStatus": "TAGGED"}):
-        ids += [i for i in page["imageIds"] if re.fullmatch(rf"s{pk}-\d+", i.get("imageTag", ""))]
+        ids += [i for i in page["imageIds"] if re.fullmatch(rf"s{pk}-\d+(-[0-9a-f]+)?", i.get("imageTag", ""))]
     ids.sort(key=lambda i: int(i["imageTag"].split("-")[1]))
     ids = ids[:len(ids) - keep] if keep else ids
     for i in range(0, len(ids), 100):

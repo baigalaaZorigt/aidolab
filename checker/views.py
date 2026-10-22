@@ -48,6 +48,7 @@ def run_scan(user, url: str) -> Service:
     service.name, service.score = name, result["score"]
     service.findings, service.advice = result["findings"], advice
     service.last_commit = result.get("commit", "")
+    service.runtime = result.get("runtime", "python")
     service.save()
     c = service.counts
     ScanRun.objects.create(service=service, score=service.score, high=c["high"], medium=c["medium"], low=c["low"])

@@ -73,7 +73,7 @@ resource "aws_codebuild_project" "build" {
   name          = "aidolab-build"
   description   = "Builds a student repo into an image (no VPC, push-only permissions)"
   service_role  = aws_iam_role.build.arn
-  build_timeout = 15
+  build_timeout = 25
 
   artifacts { type = "NO_ARTIFACTS" }
 

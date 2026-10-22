@@ -41,7 +41,8 @@ def explain(result: dict) -> dict | None:
     if not os.environ.get("ANTHROPIC_API_KEY"):
         return None
     # Findings carry masked secrets only; raw values never leave the scanner.
-    payload = {"score": result["score"], "findings": result["findings"][:40]}
+    runtime = "Node.js (JavaScript)" if result.get("runtime") == "node" else "Python"
+    payload = {"score": result["score"], "runtime": runtime, "findings": result["findings"][:40]}
     client = anthropic.Anthropic()
     try:
         response = client.beta.messages.create(

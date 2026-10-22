@@ -1,6 +1,6 @@
 # Runs in a throwaway CodeBuild machine. Inputs (env): REPO_URL, IMAGE_TAG, ECR_REPO,
 # GITHUB_TOKEN (private repos only: 1-hour read-only GitHub App token, used for the clone and then unset).
-# If the repo has no Dockerfile we generate one for a Python web app listening on $PORT (8000).
+# If the repo has no Dockerfile we generate one for a Python or Node.js web app listening on $PORT (8000).
 version: 0.2
 phases:
   pre_build:
@@ -22,6 +22,37 @@ phases:
       - |
         if [ -f Dockerfile ]; then
           echo "==> Repo-гийн Dockerfile ашиглана"
+        elif [ -f package.json ] && [ ! -f requirements.txt ] \
+             && [ -z "$(find . -name '*.py' -not -path './node_modules/*' -not -path './.git/*' | head -1)" ]; then
+          # Node.js app (same rule as scanner.detect_runtime).
+          if [ -f Procfile ] && grep -q '^web:' Procfile; then
+            START=$(grep '^web:' Procfile | head -1 | sed 's/^web:[[:space:]]*//')
+          elif grep -q '"start"[[:space:]]*:' package.json; then
+            START="npm start"
+          elif grep -q '"next"[[:space:]]*:' package.json; then
+            START="npx next start"
+          else
+            echo "!! Эхлүүлэх команд олдсонгүй. package.json-ийн \"scripts\" хэсэгт \"start\" нэмнэ үү."; exit 1
+          fi
+          if [ -f pnpm-lock.yaml ]; then INSTALL="pnpm install --frozen-lockfile"
+          elif [ -f yarn.lock ]; then INSTALL="yarn install --frozen-lockfile"
+          elif [ -f package-lock.json ]; then INSTALL="npm ci"
+          else INSTALL="npm install"; fi
+          echo "==> Node.js апп · суулгах: $INSTALL · эхлүүлэх: $START"
+          {
+            echo 'FROM public.ecr.aws/docker/library/node:22-slim'
+            echo 'ENV PORT=8000 NEXT_TELEMETRY_DISABLED=1 COREPACK_ENABLE_DOWNLOAD_PROMPT=0'
+            echo 'RUN corepack enable && mkdir /app && chown node:node /app'
+            echo 'WORKDIR /app'
+            echo 'USER node'
+            echo 'COPY --chown=node:node . .'
+            # devDependencies are needed for the build (typescript, tailwind), so NODE_ENV is set after it.
+            echo "RUN $INSTALL"
+            echo 'RUN if grep -q "\"build\"[[:space:]]*:" package.json; then npm run build; fi'
+            echo 'ENV NODE_ENV=production'
+            echo 'EXPOSE 8000'
+            echo "CMD [\"sh\", \"-c\", \"$START\"]"
+          } > Dockerfile
         else
           if [ -f Procfile ] && grep -q '^web:' Procfile; then
             START=$(grep '^web:' Procfile | head -1 | sed 's/^web:[[:space:]]*//')

@@ -73,7 +73,7 @@
         {% if service.deploy_state == "live" %}<a href="{{ service.url }}" target="_blank" rel="noopener" class="mono">{{ service.url }}</a>
         {% else %}<span class="mono">{{ service.url }}</span>{% endif %}</span>
       <a href="{{ service.repo_url }}" target="_blank" rel="noopener"><svg class="i" viewBox="0 0 24 24"><path d="M9 19c-4 1.5-4-2-6-2.5M15 21v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 00-1.3-3.2 4.2 4.2 0 00-.1-3.2s-1-.3-3.4 1.3a11.5 11.5 0 00-6.2 0C6.6 2.8 5.6 3.1 5.6 3.1a4.2 4.2 0 00-.1 3.2A4.6 4.6 0 004.2 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg>{{ service.name }}</a>
-      <span class="tag">Python</span>
+      <span class="tag">{{ service.get_runtime_display }}</span>
       <span>Сүүлд шалгасан: {{ service.updated_ago }}</span>
     </div>
   </div>
