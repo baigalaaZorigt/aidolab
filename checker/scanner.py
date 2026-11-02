@@ -14,6 +14,8 @@ import urllib.request
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
+from . import buildplan
+
 GITHUB_URL_RE = re.compile(r"^https://github\.com/[\w.-]+/[\w.-]+?(\.git)?/?$")
 MAX_REPO_MB = 50
 MAX_FILE_BYTES = 1_000_000
@@ -149,36 +151,42 @@ def detect_runtime(root: Path) -> str:
     return "python" if has_python else "node"
 
 
-def node_start_script(pkg: dict) -> bool:
-    scripts = pkg.get("scripts") if isinstance(pkg.get("scripts"), dict) else {}
-    deps = {**(pkg.get("dependencies") or {}), **(pkg.get("devDependencies") or {})}
-    # buildspec.yml falls back to "next start" for Next.js apps without a start script.
-    return bool(scripts.get("start")) or "next" in deps
-
-
 def has_start_command(root: Path) -> bool:
-    if detect_runtime(root) == "node":
-        return (root / "Dockerfile").exists() or node_start_script(package_json(root))
-    procfile = root / "Procfile"
-    if procfile.exists() and re.search(r"(?m)^web:", procfile.read_text(errors="ignore")):
-        return True
-    if (root / "Dockerfile").exists() or (root / "app.py").exists():
-        return True
-    reqs = (root / "requirements.txt").read_text(errors="ignore").lower() if (root / "requirements.txt").exists() else ""
-    if (root / "main.py").exists() and "fastapi" in reqs:
-        return True
-    return any(p for p in root.rglob("wsgi.py") if not any(part in SKIP_DIRS for part in p.parts))
+    return bool(buildplan.plan(root)["start"])
+
+
+NODE_LISTEN_RE = re.compile(r"\.listen\(\s*\d{2,5}\b")
+
+
+def check_node_port(root: Path) -> list[Finding]:
+    """A hard-coded port (app.listen(3000)) starts fine but never answers on the platform's PORT."""
+    for path, text in iter_text_files(root):
+        if path.suffix not in (".js", ".mjs", ".cjs", ".ts") or "process.env.PORT" in text:
+            continue
+        for lineno, line in enumerate(text.splitlines(), 1):
+            if NODE_LISTEN_RE.search(line):
+                return [Finding("hardcoded_port", "medium", "Апп порт тогтмол бичсэн тул PORT хувьсагчийг уншихгүй байна",
+                                str(path.relative_to(root)), lineno,
+                                "Жишээ нь: app.listen(process.env.PORT || 3000)")]
+    return []
 
 
 def check_hosting(root: Path) -> list[Finding]:
     findings = []
-    if not has_start_command(root):
+    plan = buildplan.plan(root)
+    if not plan["start"]:
         if detect_runtime(root) == "node":
             findings.append(Finding("no_start_command", "medium", "Апп-ыг эхлүүлэх команд олдсонгүй", "package.json", 0,
                                     'package.json-ийн "scripts" хэсэгт "start" нэмнэ үү, жишээ нь: "start": "node server.js"'))
+        elif not any(root.rglob("*.py")):
+            findings.append(Finding("no_start_command", "medium", "Апп-ыг эхлүүлэх файл олдсонгүй", "index.html", 0,
+                                    "Вэб сайт бол index.html файлыг repo-гийн үндсэн хавтсанд байрлуулна уу."))
         else:
             findings.append(Finding("no_start_command", "medium", "Апп-ыг эхлүүлэх команд олдсонгүй",
-                                    "Procfile", 0, "Procfile файлд жишээ нь: web: gunicorn app:app --bind 0.0.0.0:$PORT"))
+                                    "Procfile", 0, "app.py эсвэл main.py дотор Flask, FastAPI, Streamlit, Gradio апп "
+                                    "олдсонгүй. Procfile файлд жишээ нь: web: gunicorn app:app --bind 0.0.0.0:$PORT"))
+    if plan["runtime"] == "node" and plan["kind"] != "next":
+        findings += check_node_port(root)
     uses_database_url = False
     sqlite_hits, write_hits = [], []
     for path, text in iter_text_files(root):
@@ -221,9 +229,23 @@ def parse_requirements(root: Path) -> tuple[list[tuple[str, str]], list[str], Pa
     return pinned, unpinned, req
 
 
+def parse_pyproject(root: Path) -> tuple[list[tuple[str, str]], list[str]]:
+    pinned, unpinned = [], []
+    for dep in buildplan.pyproject_deps(root):
+        m = re.match(r"^([A-Za-z0-9_.\-\[\]]+)\s*==\s*([\w.\-+]+)", dep.split(";")[0].strip())
+        if m:
+            pinned.append((re.sub(r"\[.*\]", "", m.group(1)), m.group(2)))
+        else:
+            unpinned.append(re.split(r"[<>=!~ ;\[]", dep.strip())[0])
+    return pinned, unpinned
+
+
 def check_dependencies(root: Path) -> list[Finding]:
     pinned, unpinned, req = parse_requirements(root)
     has_python = any(root.rglob("*.py"))
+    if req is None and buildplan.pyproject_deps(root):
+        req = root / "pyproject.toml"
+        pinned, unpinned = parse_pyproject(root)
     if req is None:
         if has_python:
             return [Finding("no_requirements", "medium", "requirements.txt байхгүй — сервер сангуудаа суулгаж чадахгүй")]
@@ -354,6 +376,22 @@ def clone(url: str, dest: Path, token: str | None = None) -> None:
         raise ScanError(f"Repo хэт том байна ({size_mb:.0f}MB > {MAX_REPO_MB}MB).")
 
 
+def checkout(url: str, dest: Path, token: str | None = None, commit: str = "") -> None:
+    """Clone like clone(), then move to `commit` if the default branch has moved on since the scan."""
+    clone(url, dest, token)
+    if not commit or not re.fullmatch(r"[0-9a-f]{40}", commit):
+        return
+    head = subprocess.run(["git", "-C", str(dest), "rev-parse", "HEAD"], capture_output=True, text=True, timeout=10).stdout.strip()
+    if head == commit:
+        return
+    try:
+        for args in (["fetch", "--depth", "1", "origin", commit], ["checkout", "-q", "FETCH_HEAD"]):
+            subprocess.run(["git", "-c", "core.symlinks=false", "-C", str(dest), *args],
+                           check=True, capture_output=True, timeout=60, env=git_env(token))
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+        raise ScanError("Шалгасан commit-ийг татаж чадсангүй. Repo-г дахин шалгуулна уу.")
+
+
 def remote_head(url: str, token: str | None = None) -> str | None:
     """Commit at the tip of the repo's default branch, without downloading it."""
     if not GITHUB_URL_RE.match(url):
@@ -397,6 +435,7 @@ def scan_repo(url: str, token: str | None = None) -> dict:
         commit = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"],
                                 capture_output=True, text=True, timeout=10).stdout.strip()
         runtime = detect_runtime(root)
+        plan = buildplan.plan(root)
         deps = check_node_dependencies(root) if runtime == "node" else check_dependencies(root)
         findings = (check_secrets(root) + check_repo_files(root) + check_hosting(root)
                     + deps + check_bandit(root))
@@ -404,4 +443,4 @@ def scan_repo(url: str, token: str | None = None) -> dict:
     findings = dedupe(findings)
     findings.sort(key=lambda f: (order.get(f.severity, 3), f.file, f.line))
     return {"url": url, "score": score(findings), "findings": [asdict(f) for f in findings],
-            "commit": commit, "runtime": runtime}
+            "commit": commit, "runtime": plan["runtime"] if plan["kind"] else runtime}

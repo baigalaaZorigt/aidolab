@@ -153,9 +153,13 @@ def service_events(request, pk):
         scan.delta = scan.score - prev.score if prev else None
         scan.kind, scan.at = "scan", scan.created_at
     deploys = list(service.deploys.all()[:50])
+    targets = hosting.rollback_targets(service)
     for d in deploys:
         d.kind, d.at = "deploy", d.started_at
-    current = deploys[0].pk if deploys else None
+        d.can_rollback = d.pk in targets
+        d.db_point = targets.get(d.pk)
+    live = hosting.live_deploy(service)
+    current = live.pk if live else None
     events = sorted(scans + deploys, key=lambda e: e.at, reverse=True)
     return render(request, "checker/service_events.html", {
         "service": service, "events": events, "current_deploy": current, "tab": "events"})
@@ -192,11 +196,20 @@ def deploy(request, pk):
     error = hosting.deploy_error(service, user_plan(request))
     if not error and service.deploy_state == "building":
         error = "Өмнөх deploy дуусаагүй байна."
+    target = None
+    if not error and request.POST.get("trigger") == "rollback":
+        target = service.deploys.filter(pk=request.POST.get("target") or 0).first()
+        if target is None or target.pk not in hosting.rollback_targets(service):
+            error = "Энэ хувилбар руу буцаах боломжгүй байна."
     if error:
         messages.error(request, error)
         return redirect("service", pk=service.pk)
-    d = hosting.start_deploy(service, trigger=request.POST.get("trigger", "manual"))
-    audit(request, "deploy", f"Deploy #{d.number} эхлүүлэв" + (" (өмнөх хувилбар руу буцаах)" if d.trigger == "rollback" else ""), service)
+    d = hosting.start_deploy(service, target=target, restore_db=request.POST.get("restore_db") == "1")
+    if target is None:
+        audit(request, "deploy", f"Deploy #{d.number} эхлүүлэв", service)
+    else:
+        audit(request, "deploy", f"Deploy #{d.number}: Deploy #{target.number}-ийн хувилбар руу буцаав"
+              + (" (өгөгдлийн сантай нь)" if d.restore_db else ""), service)
     return redirect("service_logs", pk=service.pk)
 
 

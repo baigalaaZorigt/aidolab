@@ -1,19 +1,28 @@
 # Runs in a throwaway CodeBuild machine. Inputs (env): REPO_URL, IMAGE_TAG, ECR_REPO,
-# GITHUB_TOKEN (private repos only: 1-hour read-only GitHub App token, used for the clone and then unset).
-# If the repo has no Dockerfile we generate one for a Python or Node.js web app listening on $PORT (8000).
+# COMMIT (the scanned commit; empty = default branch), DOCKERFILE_B64 (from checker/buildplan.py),
+# GITHUB_TOKEN (private repos only: 1-hour read-only GitHub App token, used for the fetch and then unset).
+# The repo's own Dockerfile wins; otherwise the generated one is used. All detection lives in buildplan.py.
 version: 0.2
 phases:
   pre_build:
     commands:
-      - echo "==> Repo татаж байна $REPO_URL"
+      - echo "==> Repo татаж байна $REPO_URL $COMMIT"
       - |
+        set -e
         if [ -n "$GITHUB_TOKEN" ]; then
           AUTH=$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)
-          GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.https://github.com/.extraheader \
-            GIT_CONFIG_VALUE_0="Authorization: Basic $AUTH" git -c core.symlinks=false clone --depth 1 "$REPO_URL" app
+          export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.https://github.com/.extraheader \
+            GIT_CONFIG_VALUE_0="Authorization: Basic $AUTH"
+        fi
+        if [ -n "$COMMIT" ]; then
+          git init -q app && git -C app config core.symlinks false
+          git -C app fetch -q --depth 1 "$REPO_URL" "$COMMIT"
+          git -C app checkout -q FETCH_HEAD
         else
           git -c core.symlinks=false clone --depth 1 "$REPO_URL" app
         fi
+        unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
+        rm -rf app/.git  # never copied into an image (a static site would serve it)
       - unset GITHUB_TOKEN AUTH
       - aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "${ECR_REPO%%/*}"
   build:
@@ -22,65 +31,11 @@ phases:
       - |
         if [ -f Dockerfile ]; then
           echo "==> Repo-гийн Dockerfile ашиглана"
-        elif [ -f package.json ] && [ ! -f requirements.txt ] \
-             && [ -z "$(find . -name '*.py' -not -path './node_modules/*' -not -path './.git/*' | head -1)" ]; then
-          # Node.js app (same rule as scanner.detect_runtime).
-          if [ -f Procfile ] && grep -q '^web:' Procfile; then
-            START=$(grep '^web:' Procfile | head -1 | sed 's/^web:[[:space:]]*//')
-          elif grep -q '"start"[[:space:]]*:' package.json; then
-            START="npm start"
-          elif grep -q '"next"[[:space:]]*:' package.json; then
-            START="npx next start"
-          else
-            echo "!! Эхлүүлэх команд олдсонгүй. package.json-ийн \"scripts\" хэсэгт \"start\" нэмнэ үү."; exit 1
-          fi
-          if [ -f pnpm-lock.yaml ]; then INSTALL="pnpm install --frozen-lockfile"
-          elif [ -f yarn.lock ]; then INSTALL="yarn install --frozen-lockfile"
-          elif [ -f package-lock.json ]; then INSTALL="npm ci"
-          else INSTALL="npm install"; fi
-          echo "==> Node.js апп · суулгах: $INSTALL · эхлүүлэх: $START"
-          {
-            echo 'FROM public.ecr.aws/docker/library/node:22-slim'
-            echo 'ENV PORT=8000 NEXT_TELEMETRY_DISABLED=1 COREPACK_ENABLE_DOWNLOAD_PROMPT=0'
-            echo 'RUN corepack enable && mkdir /app && chown node:node /app'
-            echo 'WORKDIR /app'
-            echo 'USER node'
-            echo 'COPY --chown=node:node . .'
-            # devDependencies are needed for the build (typescript, tailwind), so NODE_ENV is set after it.
-            echo "RUN $INSTALL"
-            echo 'RUN if grep -q "\"build\"[[:space:]]*:" package.json; then npm run build; fi'
-            echo 'ENV NODE_ENV=production'
-            echo 'EXPOSE 8000'
-            echo "CMD [\"sh\", \"-c\", \"$START\"]"
-          } > Dockerfile
+        elif [ -n "$DOCKERFILE_B64" ]; then
+          echo "$DOCKERFILE_B64" | base64 -d > Dockerfile
+          echo "==> Dockerfile үүсгэлээ:"; sed 's/^/    /' Dockerfile
         else
-          if [ -f Procfile ] && grep -q '^web:' Procfile; then
-            START=$(grep '^web:' Procfile | head -1 | sed 's/^web:[[:space:]]*//')
-          elif WSGI=$(find . -name wsgi.py -not -path './.venv/*' -not -path './venv/*' | head -1) && [ -n "$WSGI" ]; then
-            MOD=$(echo "${WSGI#./}" | sed 's/\.py$//; s#/#.#g')
-            START="gunicorn $MOD:application --bind 0.0.0.0:\$PORT --workers 2"
-          elif grep -qi '^streamlit' requirements.txt 2>/dev/null \
-               && ST=$(grep -l 'import streamlit' streamlit_app.py app.py main.py *.py 2>/dev/null | head -1) && [ -n "$ST" ]; then
-            START="streamlit run $ST --server.port \$PORT --server.address 0.0.0.0 --server.headless true --browser.gatherUsageStats false"
-          elif [ -f main.py ] && grep -qi fastapi requirements.txt 2>/dev/null; then
-            START="uvicorn main:app --host 0.0.0.0 --port \$PORT"
-          elif [ -f app.py ]; then
-            START="gunicorn app:app --bind 0.0.0.0:\$PORT --workers 2"
-          else
-            echo "!! Эхлүүлэх команд олдсонгүй. Procfile-д 'web: ...' мөр нэмнэ үү."; exit 1
-          fi
-          echo "==> Эхлүүлэх команд: $START"
-          {
-            echo 'FROM public.ecr.aws/docker/library/python:3.12-slim'
-            echo 'ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PORT=8000'
-            echo 'WORKDIR /app'
-            echo 'COPY . .'
-            echo 'RUN if [ -f requirements.txt ]; then pip install -r requirements.txt; fi && pip install gunicorn uvicorn'
-            echo 'RUN useradd --create-home app && chown -R app /app'
-            echo 'USER app'
-            echo 'EXPOSE 8000'
-            echo "CMD [\"sh\", \"-c\", \"$START\"]"
-          } > Dockerfile
+          echo "!! Апп-ыг яаж эхлүүлэхийг олсонгүй. Procfile-д 'web: ...' мөр нэмнэ үү."; exit 1
         fi
       - echo "==> Image бүтээж байна $IMAGE_TAG"
       - docker build -t "$ECR_REPO:$IMAGE_TAG" .

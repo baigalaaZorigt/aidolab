@@ -7,11 +7,14 @@ from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from . import domains, github_app, hosting, oauth, scanner, worker
-from .models import ContactRequest, CustomDomain, Deploy, EnvVar, GitHubInstallation, Job, Service, SocialAccount
+from . import buildplan, domains, github_app, hosting, oauth, scanner, worker
+from .models import (ContactRequest, CustomDomain, Database, Deploy, EnvVar, GitHubInstallation, Job, Service,
+                     SocialAccount)
 from .plans import get_plan
 
 AWS = override_settings(HOSTING_BACKEND="aws", AIDOLAB={"FILES_BUCKET": "files"})
+FLASK_PLAN = {"kind": "flask", "label": "Flask · Python 3.12", "runtime": "python",
+              "start": "gunicorn app:app", "release": "", "dockerfile": "FROM python\n"}
 
 
 @AWS
@@ -20,6 +23,11 @@ class RealDeployTests(TestCase):
         self.user = User.objects.create_user("a@example.com", password="x")
         self.service = Service.objects.create(owner=self.user, name="todo", slug="todo-app",
                                               repo_url="https://github.com/x/todo", score=90)
+        # The worker reads the repo to plan the build; tests hand it a plan instead of cloning.
+        for target, value in (("checker.worker.checkout", None), ("checker.buildplan.plan", FLASK_PLAN)):
+            patcher = mock.patch(target, return_value=value)
+            self.plan = patcher.start()
+            self.addCleanup(patcher.stop)
 
     def test_deploy_is_queued_for_the_worker(self):
         d = hosting.start_deploy(self.service)
@@ -31,6 +39,7 @@ class RealDeployTests(TestCase):
     @mock.patch("checker.worker.aws")
     def test_worker_builds_and_starts(self, aws, _sleep, _http):
         aws.start_build.return_value = ("build:1", "repo:s1-1")
+        aws.register_task.return_value = "taskdef:1"
         aws.build_state.side_effect = [("IN_PROGRESS", "s"), ("SUCCEEDED", "s")]
         aws.build_log.return_value = (["step"], "t")
         aws.rollout_state.side_effect = [("IN_PROGRESS", ""), ("COMPLETED", "")]
@@ -42,13 +51,25 @@ class RealDeployTests(TestCase):
         d = self.service.deploys.get()
         self.assertEqual(d.state, Deploy.LIVE)
         self.assertEqual(d.image, "repo:s1-1")
+        self.assertEqual(d.plan["kind"], "flask")
+        self.assertEqual(aws.start_build.call_args.args[4], "FROM python\n")  # generated Dockerfile goes to CodeBuild
         aws.sync_params.assert_called_once_with(self.service, {"API_KEY": "v"})
+        aws.start_release.assert_not_called()  # no migration command
         self.assertIn("step", [line for _, line in d.logs])
+
+    def test_app_without_start_command_fails_before_building(self):
+        self.plan.return_value = {**FLASK_PLAN, "kind": "", "start": ""}
+        with mock.patch("checker.worker.aws") as aws:
+            hosting.start_deploy(self.service)
+            worker.process(worker.claim_deploy())
+        self.assertEqual(self.service.deploys.get().state, Deploy.FAILED)
+        aws.start_build.assert_not_called()
 
     @mock.patch("checker.worker.time.sleep")
     @mock.patch("checker.worker.aws")
     def test_failed_build_is_reported(self, aws, _sleep):
         aws.start_build.return_value = ("build:1", "repo:s1-1")
+        aws.register_task.return_value = "taskdef:1"
         aws.build_state.return_value = ("FAILED", None)
         hosting.start_deploy(self.service)
 
@@ -64,6 +85,7 @@ class RealDeployTests(TestCase):
     @mock.patch("checker.worker.aws")
     def test_running_but_silent_app_fails(self, aws, _sleep, _http):
         aws.start_build.return_value = ("build:1", "repo:s1-1")
+        aws.register_task.return_value = "taskdef:1"
         aws.build_state.return_value = ("SUCCEEDED", None)
         aws.rollout_state.return_value = ("COMPLETED", "")
         hosting.start_deploy(self.service)
@@ -94,6 +116,121 @@ class RealDeployTests(TestCase):
         job = Job.objects.get()
         self.assertFalse(job.done)
         self.assertEqual(job.attempts, 1)
+
+
+MIGRATE_PLAN = {**FLASK_PLAN, "kind": "django", "release": "python manage.py migrate --noinput"}
+
+
+@AWS
+@mock.patch("checker.worker.answers_http", return_value=True)
+@mock.patch("checker.worker.time.sleep")
+@mock.patch("checker.worker.aws")
+class MigrationTests(TestCase):
+    """Backup before migrating; on failure the database and the service go back."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("m@example.com", password="x")
+        self.service = Service.objects.create(owner=self.user, name="shop", slug="shop",
+                                              repo_url="https://github.com/x/shop", score=90)
+        Database.objects.create(service=self.service, name="db_shop", username="u_shop")
+        for target, value in (("checker.worker.checkout", None), ("checker.buildplan.plan", MIGRATE_PLAN)):
+            patcher = mock.patch(target, return_value=value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def ready(self, aws, migration_exit=0, rollout="COMPLETED"):
+        aws.start_build.return_value = ("build:1", "repo:new")
+        aws.register_task.return_value = "taskdef:1"
+        aws.build_state.return_value = ("SUCCEEDED", None)
+        aws.backup_database.return_value = 2048
+        aws.start_release.return_value = "arn:task/abc"
+        aws.release_state.return_value = ("STOPPED", migration_exit, "")
+        aws.task_log.return_value = (["Applying shop.0002... OK"], "t")
+        aws.rollout_state.return_value = (rollout, "")
+        aws.restore_database.return_value = "db_shop_old_1"
+
+    def test_backup_then_migrate_then_live(self, aws, _sleep, _http):
+        self.ready(aws)
+        hosting.start_deploy(self.service)
+        worker.process(worker.claim_deploy())
+        d = self.service.deploys.get()
+        self.assertEqual(d.state, Deploy.LIVE)
+        self.assertTrue(d.backup_key.startswith(f"{self.service.pk}/1-"))
+        aws.backup_database.assert_called_once_with(self.service.database, d.backup_key)
+        self.assertEqual(aws.start_release.call_args.args[2], "python manage.py migrate --noinput")
+        self.assertIn("Applying shop.0002... OK", [line for _, line in d.logs])
+        aws.restore_database.assert_not_called()
+        # Backup happens before the migration, which happens before the switch.
+        names = [c[0] for c in aws.method_calls]
+        self.assertLess(names.index("backup_database"), names.index("start_release"))
+        self.assertLess(names.index("start_release"), names.index("run"))
+
+    def test_failed_migration_restores_and_never_switches(self, aws, _sleep, _http):
+        self.ready(aws, migration_exit=1)
+        hosting.start_deploy(self.service)
+        worker.process(worker.claim_deploy())
+        d = self.service.deploys.get()
+        self.assertEqual(d.state, Deploy.FAILED)
+        self.assertIn("Migration амжилтгүй", d.error)
+        aws.restore_database.assert_called_once_with(self.service.database, d.backup_key)
+        aws.run.assert_not_called()
+        job = Job.objects.get(kind="drop_database")  # replaced database kept a day, then dropped
+        self.assertEqual(job.payload, {"name": "db_shop_old_1", "username": None})
+        self.assertGreater(job.run_after, timezone.now())
+
+    def test_failed_backup_stops_before_migrating(self, aws, _sleep, _http):
+        self.ready(aws)
+        aws.backup_database.side_effect = RuntimeError("pg_dump failed")
+        hosting.start_deploy(self.service)
+        worker.process(worker.claim_deploy())
+        self.assertIn("нөөцөлж чадсангүй", self.service.deploys.get().error)
+        aws.start_release.assert_not_called()
+        aws.run.assert_not_called()
+
+    def test_new_version_down_after_migration_reverts_both(self, aws, _sleep, _http):
+        self.ready(aws, rollout="FAILED")
+        old = Deploy.objects.create(service=self.service, number=1, state=Deploy.LIVE, image="repo:old")
+        hosting.start_deploy(self.service)
+        worker.process(worker.claim_deploy())
+        d = self.service.deploys.get(number=2)
+        self.assertEqual(d.state, Deploy.FAILED)
+        aws.restore_database.assert_called_once_with(self.service.database, d.backup_key)
+        self.assertEqual(aws.register_task.call_args.args[1], old.image)  # last call: back to the old image
+        self.assertIn("Deploy #1", " ".join(line for _, line in d.logs))
+
+    def test_rollback_reuses_image_and_restores_that_time(self, aws, _sleep, _http):
+        self.ready(aws)
+        v1 = Deploy.objects.create(service=self.service, number=1, state=Deploy.LIVE, image="repo:v1")
+        Deploy.objects.create(service=self.service, number=2, state=Deploy.LIVE, image="repo:v2",
+                              backup_key="1/2-before.dump")
+        self.assertEqual(hosting.rollback_targets(self.service), {v1.pk: self.service.deploys.get(number=2)})
+
+        d = hosting.start_deploy(self.service, target=v1, restore_db=True)
+        worker.process(worker.claim_deploy())
+        d.refresh_from_db()
+        self.assertEqual((d.trigger, d.state, d.image), ("rollback", Deploy.LIVE, "repo:v1"))
+        aws.start_build.assert_not_called()
+        aws.start_release.assert_not_called()
+        aws.restore_database.assert_called_once_with(self.service.database, "1/2-before.dump")
+
+    def test_app_live_before_buildplan_keeps_old_rules(self, aws, _sleep, _http):
+        self.ready(aws)
+        self.service.build_mode = "legacy"
+        self.service.save()
+        legacy = {**FLASK_PLAN, "kind": "python", "start": "gunicorn app:app"}
+        with mock.patch("checker.buildplan.legacy_plan", return_value=legacy):
+            hosting.start_deploy(self.service)
+            worker.process(worker.claim_deploy())
+        d = self.service.deploys.get()
+        self.assertEqual((d.state, d.plan["start"]), (Deploy.LIVE, "gunicorn app:app"))
+        aws.backup_database.assert_not_called()  # no migrations on the old rules
+        aws.start_release.assert_not_called()
+
+    def test_rollback_view_checks_the_target(self, aws, _sleep, _http):
+        current = Deploy.objects.create(service=self.service, number=1, state=Deploy.LIVE, image="repo:v1")
+        self.client.force_login(self.user)
+        self.client.post(f"/services/{self.service.pk}/deploy/", {"trigger": "rollback", "target": current.pk})
+        self.assertEqual(self.service.deploys.count(), 1)  # the live version is not a rollback target
 
 
 @AWS
@@ -146,6 +283,25 @@ class DemoDeployTests(TestCase):
         d = hosting.start_deploy(service)
         self.assertFalse(d.is_real)
         self.assertEqual(d.status, "building")
+
+    def test_demo_rollback_with_database(self):
+        user = User.objects.create_user("c@example.com", password="x")
+        service = Service.objects.create(owner=user, name="x", slug="xyz", repo_url="https://github.com/x/y", score=90)
+        Database.objects.create(service=service, name="db_xyz", username="u_xyz")
+        old = timezone.now() - timezone.timedelta(minutes=5)
+        v1 = hosting.start_deploy(service)
+        hosting.start_deploy(service)
+        Deploy.objects.update(started_at=old)
+        targets = hosting.rollback_targets(service)
+        self.assertIn(v1.pk, targets)
+        self.assertIsNotNone(targets[v1.pk])  # demo backups make the database option visible
+        self.client.force_login(user)
+        self.client.post(f"/services/{service.pk}/deploy/", {"trigger": "rollback", "target": v1.pk, "restore_db": "1"})
+        d = service.deploys.first()
+        self.assertEqual((d.rollback_of, d.restore_db), (v1, True))
+        self.assertIn("Өгөгдлийн санг нөөцөөс", " ".join(line for _, line in d.logs))
+        page = self.client.get(f"/services/{service.pk}/events/").content.decode()
+        self.assertIn("Өгөгдлийн санг мөн", page)
 
 
 @AWS
@@ -233,7 +389,7 @@ class TeardownTests(TestCase):
             repositoryName="aidolab-apps", imageIds=[{"imageTag": "s1-1"}, {"imageTag": "s1-2-a1b2c3"}])
 
     @mock.patch("checker.aws.client")
-    def test_redeploy_keeps_two_newest_versions(self, client):
+    def test_redeploy_keeps_newest_versions(self, client):
         from . import aws
         api = client.return_value
         api.get_paginator.return_value.paginate.side_effect = lambda **kw: (
@@ -242,7 +398,7 @@ class TeardownTests(TestCase):
             if kw["status"] == "ACTIVE" else [{"taskDefinitionArns": []}])
         service = mock.Mock(pk=1)
         with override_settings(AIDOLAB={"ECR_REPO": "1.dkr.ecr.r.amazonaws.com/aidolab-apps"}):
-            aws.prune_old_versions(service)
+            aws.prune_old_versions(service, keep=2)
         api.batch_delete_image.assert_called_once_with(
             repositoryName="aidolab-apps", imageIds=[{"imageTag": "s1-1"}, {"imageTag": "s1-2"}])
         api.delete_task_definitions.assert_called_once_with(
@@ -582,3 +738,107 @@ class NodeScanTests(TestCase):
         self.write("app/page.tsx", f'const apiKey = "{key}";')
         self.write(".next/server/page.js", f'const apiKey = "{key}";')
         self.assertEqual([f.file for f in scanner.check_secrets(self.root)], ["app/page.tsx"])
+
+
+class BuildPlanTests(TestCase):
+    """The build plan is read from files only; the Dockerfile it makes is what CodeBuild uses."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+
+    def plan(self, files: dict) -> dict:
+        for rel, content in files.items():
+            path = self.root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content if isinstance(content, str) else json.dumps(content))
+        return buildplan.plan(self.root)
+
+    def test_static_site(self):
+        p = self.plan({"index.html": "<h1>hi</h1>"})
+        self.assertEqual((p["kind"], p["runtime"]), ("static", "static"))
+        self.assertIn("deny all", p["dockerfile"])  # dotfiles such as .env are never served
+
+    def test_fastapi_and_gradio_in_app_py(self):
+        p = self.plan({"app.py": "from fastapi import FastAPI\napi = FastAPI()\n", "requirements.txt": "fastapi"})
+        self.assertEqual(p["start"], "uvicorn app:api --host 0.0.0.0 --port $PORT")
+        (self.root / "app.py").write_text("import gradio as gr\n")
+        p = buildplan.plan(self.root)
+        self.assertEqual((p["kind"], p["start"]), ("gradio", "python app.py"))
+        self.assertIn("GRADIO_SERVER_NAME=0.0.0.0", p["dockerfile"])
+
+    def test_flask_in_main_py_with_pyproject(self):
+        p = self.plan({"main.py": "from flask import Flask\napp = Flask(__name__)\n", ".python-version": "3.11.4",
+                       "pyproject.toml": '[project]\nname = "x"\ndependencies = ["flask>=3", "requests"]\n'})
+        self.assertEqual(p["start"], "gunicorn main:app --bind 0.0.0.0:$PORT --workers 2")
+        self.assertIn("python:3.11-slim", p["dockerfile"])
+        self.assertIn("pip install 'flask>=3' requests", p["dockerfile"])
+
+    def test_django_migrates_in_a_task_only_with_a_database(self):
+        files = {"manage.py": "", "site/wsgi.py": "", "requirements.txt": "django"}
+        p = self.plan(files)  # SQLite: data lives in the container, so migrate as it starts
+        self.assertEqual(p["release"], "")
+        self.assertTrue(p["start"].startswith("python manage.py migrate --noinput && gunicorn site.wsgi:application"))
+        p = self.plan({"site/settings.py": "dj_database_url.parse(os.environ['DATABASE_URL'])"})
+        self.assertEqual(p["release"], "python manage.py migrate --noinput")
+        self.assertTrue(p["start"].startswith("gunicorn"))
+
+    def test_vite_app_is_built_and_served_statically(self):
+        p = self.plan({"package.json": {"scripts": {"dev": "vite", "build": "vite build"}, "devDependencies": {"vite": "5"}}})
+        self.assertEqual(p["kind"], "spa")
+        self.assertIn("COPY --from=build /app/dist", p["dockerfile"])
+
+    def test_express_and_prisma(self):
+        p = self.plan({"package.json": {"dependencies": {"express": "4"}}, "server.js": "app.listen(process.env.PORT)"})
+        self.assertEqual(p["start"], "node server.js")
+        p = self.plan({"prisma/schema.prisma": 'url = env("DATABASE_URL")', "prisma/migrations/1/migration.sql": ""})
+        self.assertEqual(p["release"], "npx prisma migrate deploy")
+
+    def test_repo_dockerfile_wins(self):
+        p = self.plan({"Dockerfile": "FROM golang", "main.go": ""})
+        self.assertEqual((p["kind"], p["dockerfile"]), ("dockerfile", ""))
+        self.assertTrue(p["start"])
+
+    def test_legacy_rules_ignore_new_detection(self):
+        # Old rules: app.py always meant gunicorn app:app, and no migration ever ran.
+        files = {"app.py": "from fastapi import FastAPI\napi = FastAPI()\n", "requirements.txt": "fastapi",
+                 "alembic.ini": "", "db.py": "os.environ['DATABASE_URL']"}
+        self.plan(files)
+        p = buildplan.legacy_plan(self.root)
+        self.assertEqual((p["start"], p["release"]), ("gunicorn app:app --bind 0.0.0.0:$PORT --workers 2", ""))
+        self.assertIn("pip install gunicorn uvicorn", p["dockerfile"])
+
+    def test_unknown_repo_has_no_start(self):
+        self.assertEqual(self.plan({"README.md": "hi"})["start"], "")
+
+    def test_scanner_flags_hardcoded_node_port(self):
+        self.plan({"package.json": {"scripts": {"start": "node server.js"}}, "server.js": "app.listen(3000)"})
+        self.assertIn("hardcoded_port", [f.id for f in scanner.check_hosting(self.root)])
+
+    def test_pyproject_counts_as_requirements(self):
+        self.plan({"main.py": "", "pyproject.toml": '[project]\nname = "x"\ndependencies = ["flask"]\n'})
+        self.assertNotIn("no_requirements", [f.id for f in scanner.check_dependencies(self.root)])
+
+
+class BuildModeMigrationTests(TestCase):
+    def test_deployed_apps_become_legacy(self):
+        from importlib import import_module
+        from django.apps import apps
+        migration = import_module("checker.migrations.0015_service_build_mode")
+        user = User.objects.create_user("l@example.com", password="x")
+        live = Service.objects.create(owner=user, name="a", slug="aaa", repo_url="https://github.com/x/a")
+        fresh = Service.objects.create(owner=user, name="b", slug="bbb", repo_url="https://github.com/x/b")
+        Deploy.objects.create(service=live, number=1)
+        migration.keep_live_apps_on_old_rules(apps, None)
+        self.assertEqual(Service.objects.get(pk=live.pk).build_mode, "legacy")
+        self.assertEqual(Service.objects.get(pk=fresh.pk).build_mode, "auto")
+
+
+class ZeroDowntimeTests(TestCase):
+    @mock.patch("checker.aws.client")
+    def test_old_version_serves_until_new_one_runs(self, client):
+        from . import aws
+        ecs = client.return_value
+        ecs.describe_services.return_value = {"services": [{"status": "ACTIVE"}]}
+        with override_settings(AIDOLAB={"CLUSTER": "c"}):
+            aws.run(mock.Mock(pk=3), "td:2", "reg")
+        self.assertEqual(ecs.update_service.call_args.kwargs["deploymentConfiguration"]["minimumHealthyPercent"], 100)

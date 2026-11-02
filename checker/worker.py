@@ -1,26 +1,32 @@
 """Deploy worker (HOSTING_BACKEND=aws). Runs as its own process: `manage.py run_worker`.
 
-One deploy at a time: CodeBuild image → SSM params → task role → ECS service → wait for rollout.
+One deploy at a time: plan (buildplan, from the scanned commit) → CodeBuild image → SSM params →
+task role → task definition → [database backup → migration task] → ECS service → wait for rollout.
+If the migration or the new version fails, the database goes back to the backup and the service
+back to the previous version. A rollback deploy reuses an earlier image (and optionally its database).
 Progress goes into Deploy.logs, which the Logs tab polls.
 Between deploys it also syncs custom domains (checker/domains.py) once a minute and checks deployed
 repos for new commits (auto-deploy).
 """
 import logging
+import tempfile
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 from django.db import transaction
 from django.utils import timezone
 
-from . import aws, domains, github_app, hosting
+from . import aws, buildplan, domains, github_app, hosting
 from .models import AuditEvent, Deploy, Job, Service, profile_for
 from .plans import get_plan
-from .scanner import ScanError, remote_head
+from .scanner import ScanError, checkout, remote_head
 from .views import run_scan
 
 log = logging.getLogger(__name__)
-BUILD_TIMEOUT, ROLLOUT_TIMEOUT, HTTP_TIMEOUT = 30 * 60, 10 * 60, 3 * 60
+BUILD_TIMEOUT, ROLLOUT_TIMEOUT, HTTP_TIMEOUT, RELEASE_TIMEOUT = 30 * 60, 10 * 60, 3 * 60, 15 * 60
+OLD_DATABASE_KEEP = timezone.timedelta(days=1)  # a database replaced by a restore is dropped after this
 DOMAIN_SYNC_EVERY = 60
 FREE_EXPIRY_EVERY = 600
 PUSH_CHECK_EVERY = 60
@@ -40,10 +46,30 @@ def app_env(service) -> dict[str, str]:
     return values
 
 
+def make_plan(d: Deploy, token: str | None) -> None:
+    """Read the commit being deployed (never run it) and decide how to build and start it."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "repo"
+        try:
+            checkout(d.service.repo_url, root, token, d.commit)
+        except ScanError as e:
+            raise DeployFailed(str(e))
+        d.plan = buildplan.legacy_plan(root) if d.service.build_mode == "legacy" else buildplan.plan(root)
+    d.save(update_fields=["plan"])
+    if not d.plan["start"]:
+        raise DeployFailed("Апп-ыг яаж эхлүүлэхийг олсонгүй. Шалгалтын үр дүнгийн «эхлүүлэх команд» зөвлөгөөг харна уу.")
+    d.log(f"==> Апп-ын төрөл: {d.plan['label']}")
+    if d.plan["release"]:
+        d.log(f"==> Migration: {d.plan['release']}")
+
+
 def build(d: Deploy) -> None:
     d.state = Deploy.BUILDING
-    d.build_id, d.image = aws.start_build(d.service, d.number, github_app.repo_token(d.service.owner, d.service.repo_url))
-    d.save(update_fields=["state", "build_id", "image"])
+    d.save(update_fields=["state"])
+    token = github_app.repo_token(d.service.owner, d.service.repo_url)
+    make_plan(d, token)
+    d.build_id, d.image = aws.start_build(d.service, d.number, token, d.commit, d.plan.get("dockerfile", ""))
+    d.save(update_fields=["build_id", "image"])
     d.log("==> Image бүтээж эхэллээ (CodeBuild)")
     token, started = None, time.monotonic()
     while True:
@@ -63,21 +89,23 @@ def build(d: Deploy) -> None:
         time.sleep(5)
 
 
-def start(d: Deploy) -> None:
+def register(d: Deploy) -> str:
     service = d.service
-    d.state = Deploy.STARTING
-    d.save(update_fields=["state"])
     env = app_env(service)
     d.log(f"==> Орчны хувьсагч: {len(env)} ширхэг")
     secrets = aws.sync_params(service, env)
-    role = aws.ensure_task_role(service)
-    registry = aws.ensure_registry(service)
-    task = aws.register_task(service, d.image, secrets, role)
-    aws.run(service, task, registry)
+    task = aws.register_task(service, d.image, secrets, aws.ensure_task_role(service))
+    d.task_definition = task
+    d.save(update_fields=["task_definition"])
+    return task
+
+
+def go_live(d: Deploy, task: str) -> None:
+    aws.run(d.service, task, aws.ensure_registry(d.service))
     d.log("==> Апп-ыг эхлүүлж байна (ECS Fargate Spot)")
     started = time.monotonic()
     while True:
-        state, reason = aws.rollout_state(service)
+        state, reason = aws.rollout_state(d.service)
         if state == "COMPLETED":
             break
         if state == "FAILED":
@@ -86,6 +114,103 @@ def start(d: Deploy) -> None:
             raise DeployFailed("Апп эхлэхэд хэт удлаа. Logs табаас апп-ын алдааг харна уу.")
         time.sleep(5)
     wait_http(d)
+
+
+def backup(d: Deploy) -> None:
+    key = f"{d.service.pk}/{d.number}-{timezone.now():%Y%m%d-%H%M%S}.dump"
+    d.log("==> Өгөгдлийн санг нөөцөлж байна (migration-ий өмнө)")
+    try:
+        size = aws.backup_database(d.service.database, key)
+    except Exception:
+        log.exception("backup before deploy %s failed", d.pk)
+        raise DeployFailed("Өгөгдлийн санг нөөцөлж чадсангүй тул migration хийсэнгүй. "
+                           "Апп өмнөх хувилбараараа ажиллаж байна. Mentor-оос тусламж хүснэ үү.")
+    d.backup_key = key
+    d.save(update_fields=["backup_key"])
+    d.log(f"==> Нөөц бэлэн ✓ ({max(1, size // 1024)} KB)")
+
+
+def migrate(d: Deploy, task: str) -> None:
+    """Run the release command in its own task. A database we host is backed up first."""
+    command = d.plan.get("release")
+    if not command:
+        return
+    if hasattr(d.service, "database"):
+        backup(d)
+    d.log(f"==> Migration ажиллуулж байна: {command}")
+    arn = aws.start_release(d.service, task, command)
+    token, started = None, time.monotonic()
+    while True:
+        status, code, reason = aws.release_state(arn)
+        lines, token = aws.task_log(d.service, arn, token)
+        for line in lines:
+            d.logs.append([d.elapsed, line])
+        if lines:
+            d.save(update_fields=["logs"])
+        if status == "STOPPED":
+            break
+        if time.monotonic() - started > RELEASE_TIMEOUT:
+            aws.stop_release(arn)
+            code, reason = None, "хэт удсан"
+            break
+        time.sleep(5)
+    if code != 0:
+        restore(d, d.backup_key)
+        raise DeployFailed(f"Migration амжилтгүй ({reason or f'exit {code}'}). Дээрх log-оос алдааг харна уу. "
+                           "Апп өмнөх хувилбараараа ажиллаж байна.")
+    d.log("==> Migration дууслаа ✓")
+
+
+def restore(d: Deploy, key: str) -> None:
+    """Database back to the dump at `key`; the replaced database is kept for a day, then dropped."""
+    if not key or not hasattr(d.service, "database"):
+        return
+    d.log("==> Өгөгдлийн санг нөөцөөс сэргээж байна…")
+    old = aws.restore_database(d.service.database, key)
+    Job.objects.create(kind="drop_database", payload={"name": old, "username": None},
+                       run_after=timezone.now() + OLD_DATABASE_KEEP)
+    d.log("==> Өгөгдлийн сан нөөцлөгдсөн үеийн байдалдаа буцлаа ✓")
+    note(d.service, "database", f"Deploy #{d.number}: өгөгдлийн санг нөөцөөс сэргээв")
+
+
+def revert(d: Deploy, previous: Deploy | None) -> None:
+    """After a failed switch: database back to the backup, service back to the last live version."""
+    try:
+        restore(d, d.backup_key)
+        if previous and previous.image:
+            aws.run(d.service, aws.register_task(d.service, previous.image, aws.sync_params(d.service, app_env(d.service)),
+                                                 aws.ensure_task_role(d.service)), aws.ensure_registry(d.service))
+            d.log(f"==> Өмнөх хувилбар (Deploy #{previous.number}) руу буцаалаа")
+    except Exception:
+        log.exception("revert after deploy %s failed", d.pk)
+        d.log("!! Өмнөх байдал руу автоматаар буцааж чадсангүй. Mentor-оос тусламж хүснэ үү.")
+
+
+def start(d: Deploy) -> None:
+    d.state = Deploy.STARTING
+    d.save(update_fields=["state"])
+    previous = d.service.deploys.filter(state=Deploy.LIVE).exclude(pk=d.pk).first()
+    task = register(d)
+    migrate(d, task)
+    try:
+        go_live(d, task)
+    except DeployFailed:
+        revert(d, previous)
+        raise
+
+
+def rollback(d: Deploy) -> None:
+    """Earlier image goes live again; with restore_db the database goes back to that version's time."""
+    target = d.rollback_of
+    d.state = Deploy.STARTING
+    d.save(update_fields=["state"])
+    d.log(f"==> Deploy #{target.number}-ийн хувилбар руу буцааж байна (дахин build хийхгүй)")
+    if d.restore_db:
+        point = target.restore_point
+        if point is None:
+            raise DeployFailed("Энэ хувилбарын өгөгдлийн сангийн нөөц олдсонгүй.")
+        restore(d, point.backup_key)
+    go_live(d, register(d))
 
 
 def answers_http(url: str) -> bool:
@@ -113,8 +238,11 @@ def wait_http(d: Deploy) -> None:
 
 def process(d: Deploy) -> None:
     try:
-        build(d)
-        start(d)
+        if d.rollback_of_id and d.image:
+            rollback(d)
+        else:
+            build(d)
+            start(d)
     except DeployFailed as e:
         fail(d, str(e))
         return
@@ -159,7 +287,7 @@ def run_jobs() -> None:
             elif job.kind == "delete_files":
                 aws.delete_prefix(job.payload["prefix"])
             elif job.kind == "drop_database":
-                aws.drop_database(job.payload["name"], job.payload["username"])
+                aws.drop_database(job.payload["name"], job.payload.get("username"))
             job.done = True
         except Exception as e:
             job.attempts += 1

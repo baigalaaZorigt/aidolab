@@ -7,12 +7,17 @@ Per app (service pk N, slug S):
   task role    /aidolab/apps/aidolab-app-{N}    boundary-limited to its S3 prefix
   SSM params   /aidolab/apps/{N}/{KEY}          env vars, injected as ECS secrets
   database     db_S / role u_S on the shared RDS
+  backups      <BACKUP_BUCKET>/{N}/…dump   pg_dump taken by the worker before each migration
 
 Student code never runs on the gateway; this module only calls AWS APIs.
 """
+import base64
 import json
+import os
 import re
 import secrets
+import subprocess
+import tempfile
 import time
 from functools import cache
 
@@ -27,6 +32,10 @@ APP_DOMAIN = "apps.aidolab.internal"  # Cloud Map namespace (infra/apps.tf); ngi
 
 def cfg(key: str) -> str:
     return settings.AIDOLAB[key]
+
+
+def cfg_or_none(key: str) -> str | None:
+    return settings.AIDOLAB.get(key)
 
 
 @cache
@@ -48,12 +57,16 @@ def param_prefix(service_pk: int) -> str:
 
 # --- Build -----------------------------------------------------------------------
 
-def start_build(service, number: int, token: str | None = None) -> tuple[str, str]:
-    """`token`: 1-hour read-only GitHub App token for a private repo; buildspec.yml uses it only to clone."""
+def start_build(service, number: int, token: str | None = None, commit: str = "",
+                dockerfile: str = "") -> tuple[str, str]:
+    """`token`: 1-hour read-only GitHub App token for a private repo; buildspec.yml uses it only to clone.
+    `commit`: the scanned commit to build. `dockerfile`: from buildplan, used when the repo has none."""
     # ECR tags are immutable; the suffix keeps a retried or re-numbered deploy from hitting an existing tag.
     tag = f"s{service.pk}-{number}-{secrets.token_hex(3)}"
     env = [{"name": "REPO_URL", "value": service.repo_url, "type": "PLAINTEXT"},
            {"name": "IMAGE_TAG", "value": tag, "type": "PLAINTEXT"},
+           {"name": "COMMIT", "value": commit, "type": "PLAINTEXT"},
+           {"name": "DOCKERFILE_B64", "value": base64.b64encode(dockerfile.encode()).decode(), "type": "PLAINTEXT"},
            {"name": "GITHUB_TOKEN", "value": token or "", "type": "PLAINTEXT"}]
     build = client("codebuild").start_build(projectName=cfg("BUILD_PROJECT"), environmentVariablesOverride=env)["build"]
     return build["id"], f"{cfg('ECR_REPO')}:{tag}"
@@ -164,22 +177,69 @@ def describe(service) -> dict | None:
     return found[0] if found and found[0]["status"] != "INACTIVE" else None
 
 
+# The old task keeps serving until the new one runs (minimumHealthyPercent 100); if the new one
+# keeps crashing, the circuit breaker puts the old version back without the app going down.
+DEPLOYMENT = {"minimumHealthyPercent": 100, "maximumPercent": 200,
+              "deploymentCircuitBreaker": {"enable": True, "rollback": True}}
+
+
 def run(service, task_arn: str, registry_arn: str) -> None:
     ecs = client("ecs")
     if describe(service):
         ecs.update_service(cluster=cfg("CLUSTER"), service=name_for(service), taskDefinition=task_arn,
-                           desiredCount=1, forceNewDeployment=True)
+                           desiredCount=1, forceNewDeployment=True, deploymentConfiguration=DEPLOYMENT)
         return
     ecs.create_service(
         cluster=cfg("CLUSTER"), serviceName=name_for(service), taskDefinition=task_arn, desiredCount=1,
         capacityProviderStrategy=[{"capacityProvider": "FARGATE_SPOT", "weight": 1}],
-        networkConfiguration={"awsvpcConfiguration": {
-            "subnets": cfg("SUBNETS").split(","), "securityGroups": [cfg("APP_SG")], "assignPublicIp": "DISABLED"}},
+        networkConfiguration=network(),
         serviceRegistries=[{"registryArn": registry_arn}],
-        deploymentConfiguration={"minimumHealthyPercent": 0, "maximumPercent": 200,
-                                 "deploymentCircuitBreaker": {"enable": True, "rollback": True}},
+        deploymentConfiguration=DEPLOYMENT,
         propagateTags="SERVICE", tags=[{"key": "Project", "value": "aidolab"}],
     )
+
+
+def network() -> dict:
+    return {"awsvpcConfiguration": {"subnets": cfg("SUBNETS").split(","), "securityGroups": [cfg("APP_SG")],
+                                    "assignPublicIp": "DISABLED"}}
+
+
+def start_release(service, task_arn: str, command: str) -> str:
+    """Run the release command (migrations) once, in the new image, before the service switches to it.
+    On-demand Fargate: a Spot interruption must not cut a migration in half."""
+    resp = client("ecs").run_task(
+        cluster=cfg("CLUSTER"), taskDefinition=task_arn, count=1, launchType="FARGATE",
+        networkConfiguration=network(), startedBy="aidolab-release",
+        overrides={"containerOverrides": [{"name": "app", "command": ["sh", "-c", command]}]},
+        tags=[{"key": "Project", "value": "aidolab"}])
+    if not resp["tasks"]:
+        reason = resp["failures"][0].get("reason", "") if resp["failures"] else ""
+        raise RuntimeError(f"run_task failed: {reason}")
+    return resp["tasks"][0]["taskArn"]
+
+
+def release_state(task_arn: str) -> tuple[str, int | None, str]:
+    """(lastStatus, exit code once STOPPED, stop reason)"""
+    task = client("ecs").describe_tasks(cluster=cfg("CLUSTER"), tasks=[task_arn])["tasks"][0]
+    container = task["containers"][0]
+    return task["lastStatus"], container.get("exitCode"), task.get("stoppedReason", "")
+
+
+def stop_release(task_arn: str) -> None:
+    client("ecs").stop_task(cluster=cfg("CLUSTER"), task=task_arn, reason="release timeout")
+
+
+def task_log(service, task_arn: str, token: str | None) -> tuple[list[str], str | None]:
+    """Output of one task (awslogs stream <prefix>/<container>/<task id>)."""
+    stream = f"{name_for(service)}/app/{task_arn.rsplit('/', 1)[1]}"
+    kwargs = {"logGroupName": cfg("APP_LOG_GROUP"), "logStreamName": stream, "startFromHead": True}
+    if token:
+        kwargs["nextToken"] = token
+    try:
+        resp = client("logs").get_log_events(**kwargs)
+    except client("logs").exceptions.ResourceNotFoundException:
+        return [], token
+    return [e["message"].rstrip() for e in resp["events"]], resp["nextForwardToken"]
 
 
 def rollout_state(service) -> tuple[str, str]:
@@ -221,11 +281,73 @@ def create_database(name: str, username: str, password: str) -> None:
         conn.execute(sql.SQL("REVOKE ALL ON DATABASE {} FROM PUBLIC").format(sql.Identifier(name)))
 
 
-def drop_database(name: str, username: str) -> None:
+def drop_database(name: str, username: str | None) -> None:
+    """`username` None keeps the role (dropping a database left behind by a restore)."""
     from psycopg import sql
     with _admin_conn() as conn:
         conn.execute(sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(name)))
-        conn.execute(sql.SQL("DROP ROLE IF EXISTS {}").format(sql.Identifier(username)))
+        if username:
+            conn.execute(sql.SQL("DROP ROLE IF EXISTS {}").format(sql.Identifier(username)))
+
+
+# --- Backups (before migrations) ---------------------------------------------------
+# pg_dump/pg_restore run on the gateway as the app's own role: no student code runs here,
+# and a restore can do no more than the app itself could. The password goes in the
+# environment only (never argv). The dump goes to BACKUP_BUCKET, which no app role can reach.
+
+PG_BIN = "/usr/lib/postgresql/17/bin"  # must match the RDS major version (infra/data.tf); deploy/bootstrap-hosting.sh
+
+
+def pg_tool(name: str) -> str:
+    path = os.path.join(PG_BIN, name)
+    return path if os.path.exists(path) else name
+
+
+def pg_run(db, tool: str, *args: str, dbname: str | None = None) -> None:
+    env = {**os.environ, "PGPASSWORD": db.password, "PGSSLMODE": "require", "PGCONNECT_TIMEOUT": "10"}
+    proc = subprocess.run([pg_tool(tool), "-h", cfg("DB_HOST"), "-U", db.username, "-d", dbname or db.name, *args],
+                          env=env, capture_output=True, text=True, timeout=900)
+    if proc.returncode:
+        raise RuntimeError(f"{tool} failed: {proc.stderr.strip()[-500:]}")
+
+
+def backup_database(db, key: str) -> int:
+    """Dump the app's database to BACKUP_BUCKET/key. Returns the dump size in bytes."""
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "db.dump")
+        pg_run(db, "pg_dump", "--format=custom", "--no-owner", "--no-privileges", f"--file={path}")
+        client("s3").upload_file(path, cfg("BACKUP_BUCKET"), key, ExtraArgs={"ServerSideEncryption": "AES256"})
+        return os.path.getsize(path)
+
+
+def restore_database(db, key: str) -> str:
+    """Put the database back to the dump at `key`. The dump goes into a fresh database, which then
+    takes the app database's name; the replaced one is renamed and returned (drop it later)."""
+    from psycopg import sql
+    fresh, old = f"{db.name}_restore", f"{db.name}_old_{int(time.time())}"
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "db.dump")
+        client("s3").download_file(cfg("BACKUP_BUCKET"), key, path)
+        with _admin_conn() as conn:
+            conn.execute(sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(fresh)))
+            conn.execute(sql.SQL("CREATE DATABASE {} OWNER {}").format(sql.Identifier(fresh), sql.Identifier(db.username)))
+            conn.execute(sql.SQL("REVOKE ALL ON DATABASE {} FROM PUBLIC").format(sql.Identifier(fresh)))
+        pg_run(db, "pg_restore", "--no-owner", "--no-privileges", "--exit-on-error", "--single-transaction", path,
+               dbname=fresh)
+    with _admin_conn() as conn:
+        # No new connections while swapping, so the app can't grab the old database in between.
+        conn.execute(sql.SQL("ALTER DATABASE {} ALLOW_CONNECTIONS false").format(sql.Identifier(db.name)))
+        try:
+            conn.execute("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s "
+                         "AND pid <> pg_backend_pid()", [db.name])
+            conn.execute(sql.SQL("ALTER DATABASE {} RENAME TO {}").format(sql.Identifier(db.name), sql.Identifier(old)))
+        except Exception:
+            conn.execute(sql.SQL("ALTER DATABASE {} ALLOW_CONNECTIONS true").format(sql.Identifier(db.name)))
+            raise
+        conn.execute(sql.SQL("ALTER DATABASE {} RENAME TO {}").format(sql.Identifier(fresh), sql.Identifier(db.name)))
+        # The app connects by name, so the replaced copy can be opened again (a mentor may need data from it).
+        conn.execute(sql.SQL("ALTER DATABASE {} ALLOW_CONNECTIONS true").format(sql.Identifier(old)))
+    return old
 
 
 # --- Teardown (run by the worker; each step is safe to repeat) ---------------------
@@ -259,6 +381,8 @@ def teardown(payload: dict) -> None:
     delete_images(pk)
     delete_task_definitions(name)
     delete_log_streams(name)
+    if cfg_or_none("BACKUP_BUCKET"):
+        delete_prefix(f"{pk}/", cfg("BACKUP_BUCKET"))
     if payload.get("files"):
         delete_prefix(f"{slug}/")
     if payload.get("database"):
@@ -296,8 +420,8 @@ def delete_task_definitions(family: str, keep: int = 0) -> None:
         ecs.delete_task_definitions(taskDefinitions=arns[i:i + 10])
 
 
-def prune_old_versions(service, keep: int = 2) -> None:
-    """After a successful deploy: the live version and the one before stay, older ones go."""
+def prune_old_versions(service, keep: int = 5) -> None:
+    """After a successful deploy: the live version and the four before it stay (rollback targets)."""
     delete_images(service.pk, keep=keep)
     delete_task_definitions(name_for(service), keep=keep)
 
@@ -310,12 +434,12 @@ def delete_log_streams(name: str) -> None:
             logs.delete_log_stream(logGroupName=cfg("APP_LOG_GROUP"), logStreamName=stream["logStreamName"])
 
 
-def delete_prefix(prefix: str) -> None:
-    s3 = client("s3")
-    for page in s3.get_paginator("list_objects_v2").paginate(Bucket=cfg("FILES_BUCKET"), Prefix=prefix):
+def delete_prefix(prefix: str, bucket: str | None = None) -> None:
+    s3, bucket = client("s3"), bucket or cfg("FILES_BUCKET")
+    for page in s3.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix=prefix):
         keys = [{"Key": o["Key"]} for o in page.get("Contents", [])]
         if keys:
-            s3.delete_objects(Bucket=cfg("FILES_BUCKET"), Delete={"Objects": keys, "Quiet": True})
+            s3.delete_objects(Bucket=bucket, Delete={"Objects": keys, "Quiet": True})
 
 
 # --- Metrics ---------------------------------------------------------------------

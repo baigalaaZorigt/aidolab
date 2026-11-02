@@ -16,20 +16,35 @@ from .models import DEPLOY_SECONDS, AuditEvent, Bucket, Database, Deploy, Job, P
 from .plans import FREE_DAYS, get_plan
 
 MIN_DEPLOY_SCORE = 80
+BACKUP_DAYS = 30  # database dumps expire after this (infra/data.tf, backups bucket lifecycle)
+ROLLBACK_VERSIONS = 5  # images kept per app (aws.prune_old_versions)
 
 
 def is_aws() -> bool:
     return settings.HOSTING_BACKEND == "aws"
 
 
-def deploy_logs(service: Service, number: int, trigger: str) -> list:
+def deploy_logs(service: Service, number: int, trigger: str, target: Deploy | None = None,
+                restore_db: bool = False) -> list:
+    if target is not None:
+        lines = [[0, f"==> #{number} Deploy #{target.number}-ийн хувилбар руу буцааж байна (дахин build хийхгүй)"]]
+        if restore_db:
+            lines += [[4, "==> Өгөгдлийн санг нөөцөөс сэргээж байна…"],
+                      [10, "==> Өгөгдлийн сан нөөцлөгдсөн үеийн байдалдаа буцлаа ✓"]]
+        return lines + [[14, "==> ТУРШИЛТЫН ГОРИМ: апп бодитоор эхлүүлээгүй"],
+                        [DEPLOY_SECONDS - 1, f"==> Deploy #{target.number}-ийн хувилбар руу буцлаа."]]
     env_count = service.env_vars.count()
     extras = [k for k, on in (("DATABASE_URL", hasattr(service, "database")),
                               ("S3_BUCKET, S3_PREFIX", hasattr(service, "bucket"))) if on]
     env_line = f"==> Орчны хувьсагч: {env_count} ширхэг" + (f" + {', '.join(extras)}" if extras else "")
     title = "Өмнөх хувилбар руу буцааж байна" if trigger == "rollback" else "Deploy эхэллээ"
-    setup, install = (("Node.js 22 орчин бэлдэж байна", "npm ci && npm run build") if service.runtime == "node"
-                      else ("Python 3.12 орчин бэлдэж байна", "pip install -r requirements.txt"))
+    setup, install = {
+        "node": ("Node.js 22 орчин бэлдэж байна", "npm ci && npm run build"),
+        "static": ("Статик сайт: nginx бэлдэж байна", "Файлуудыг хуулж байна"),
+    }.get(service.runtime, ("Python 3.12 орчин бэлдэж байна", "pip install -r requirements.txt"))
+    migration = ([[16, "==> Өгөгдлийн санг нөөцөлж байна (migration-ий өмнө)"], [17, "==> Нөөц бэлэн ✓"],
+                  [17, "==> Migration ажиллуулж байна"], [18, "==> Migration дууслаа ✓"]]
+                 if hasattr(service, "database") else [])
     return [
         [0, f"==> #{number} {title} · {service.repo_url} (main)"],
         [1, "==> Repo-г татаж байна…"],
@@ -38,6 +53,7 @@ def deploy_logs(service: Service, number: int, trigger: str) -> list:
         [6, f"==> {install}"],
         [12, "    Сангууд амжилттай суулаа"],
         [14, f"==> Image бүтээж байна: aidolab/{service.slug}:{number}"],
+        *migration,
         [18, env_line],
         # Demo never starts the app, so the log must not claim it is reachable.
         [20, "==> ТУРШИЛТЫН ГОРИМ: апп бодитоор эхлүүлээгүй"],
@@ -57,22 +73,55 @@ def deploy_error(service: Service, plan: dict) -> str | None:
     return None
 
 
-def start_deploy(service: Service, trigger: str = "manual") -> Deploy:
+def live_deploy(service: Service) -> Deploy | None:
+    """The version that is (or last was) running: the newest successful deploy."""
+    return next((d for d in service.deploys.all()[:50] if d.status == "live"), None)
+
+
+def rollback_targets(service: Service) -> dict[int, Deploy | None]:
+    """{deploy pk: restore point or None} for the earlier versions the app can go back to.
+    Real hosting: only versions whose image is still kept. The restore point is the database
+    backup from that version's time, while it has not expired."""
+    current = live_deploy(service)
+    if is_aws():
+        built = [d for d in service.deploys.all()[:50] if d.trigger != "rollback" and d.image][:ROLLBACK_VERSIONS]
+        candidates = [d for d in built if d.state == Deploy.LIVE and (current is None or d.image != current.image)]
+    else:
+        candidates = [d for d in service.deploys.all()[:50] if d.status == "live" and d != current]
+    oldest = timezone.now() - timezone.timedelta(days=BACKUP_DAYS)
+    has_db = hasattr(service, "database")
+    targets = {}
+    for d in candidates:
+        point = d.restore_point if has_db else None
+        targets[d.pk] = point if point and point.started_at > oldest else None
+    return targets
+
+
+def start_deploy(service: Service, trigger: str = "manual", target: Deploy | None = None,
+                 restore_db: bool = False) -> Deploy:
+    """`target`: rollback to that deploy's version; `restore_db` also puts the database back."""
     number = (service.deploys.aggregate(n=Max("number"))["n"] or 0) + 1
+    if target is not None:
+        trigger = "rollback"
+        restore_db = restore_db and rollback_targets(service).get(target.pk) is not None
     profile = profile_for(service.owner)
     if profile.effective_plan == "free" and not profile.free_started_at:
         profile.free_started_at = timezone.now()
         profile.save(update_fields=["free_started_at"])
     service.suspended = False
     service.save(update_fields=["suspended"])
+    rollback = {"rollback_of": target, "restore_db": restore_db, "commit": target.commit, "image": target.image,
+                "plan": target.plan} if target is not None else {"commit": service.last_commit}
     if is_aws():
-        # Rollback = rebuild the same repo; image reuse comes later.
         return Deploy.objects.create(service=service, number=number, trigger=trigger, score=service.score,
-                                     commit=service.last_commit, state=Deploy.QUEUED, duration=0,
+                                     state=Deploy.QUEUED, duration=0, **rollback,
                                      logs=[[0, f"==> #{number} Deploy дараалалд орлоо · {service.repo_url}"],
                                            [0, f"==> Аюулгүй байдлын шалгалт: {service.score}/100 ✓"]])
+    # Demo: a deploy of an app with a database simulates the pre-migration backup, so rollback can offer it.
+    demo_backup = f"demo/{service.pk}/{number}" if target is None and hasattr(service, "database") else ""
     return Deploy.objects.create(service=service, number=number, trigger=trigger, score=service.score,
-                                 commit=service.last_commit, logs=deploy_logs(service, number, trigger))
+                                 backup_key=demo_backup, **rollback,
+                                 logs=deploy_logs(service, number, trigger, target, restore_db))
 
 
 def set_suspended(service: Service, suspended: bool) -> None:

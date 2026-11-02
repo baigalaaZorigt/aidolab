@@ -58,7 +58,7 @@ resource "aws_iam_role_policy" "gateway_worker" {
         Sid    = "EcsServices"
         Effect = "Allow"
         Action = ["ecs:CreateService", "ecs:UpdateService", "ecs:DeleteService", "ecs:DescribeServices",
-        "ecs:ListTasks", "ecs:DescribeTasks"]
+        "ecs:ListTasks", "ecs:DescribeTasks", "ecs:RunTask", "ecs:StopTask"] # RunTask: one-off migration task
         Resource  = "*"
         Condition = { ArnEquals = { "ecs:cluster" = aws_ecs_cluster.apps.arn } }
       },
@@ -126,6 +126,18 @@ resource "aws_iam_role_policy" "gateway_worker" {
         Effect   = "Allow"
         Action   = ["s3:DeleteObject"]
         Resource = "${aws_s3_bucket.files.arn}/*"
+      },
+      {
+        Sid      = "DatabaseBackups"
+        Effect   = "Allow"
+        Action   = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"]
+        Resource = "${aws_s3_bucket.backups.arn}/*"
+      },
+      {
+        Sid      = "DatabaseBackupsList"
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
+        Resource = aws_s3_bucket.backups.arn
       },
       {
         Sid      = "Metrics"

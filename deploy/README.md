@@ -85,4 +85,14 @@ terraform output -raw gateway_env               # → шинэ gateway-ийн /e
 |---|---|
 | `nginx-apps.conf` | `<slug>.aidolab.mn` → `<slug>.apps.aidolab.internal:8000` (Cloud Map, апп бүрд тохиргоо хэрэггүй) |
 | `aidolab-worker.service` | `manage.py run_worker`: CodeBuild → ECS deploy, устгах ажлууд |
-| `bootstrap-hosting.sh` | wildcard гэрчилгээ (certbot-dns-route53), apps proxy, worker асаах |
+| `bootstrap-hosting.sh` | wildcard гэрчилгээ (certbot-dns-route53), apps proxy, worker асаах, `postgresql-client-17` (migration-ий өмнөх нөөц) |
+
+### Migration-ий нөөц ба rollback-ийг идэвхжүүлэх (нэг удаа)
+
+Шинэ buildspec нь Dockerfile-ыг worker-оос авдаг тул **код болон Terraform-ыг ээлж дараалан, хооронд нь удаалгүй** шинэчилнэ:
+
+1. Gateway дээр: `sudo bash /srv/aidolab/app/deploy/update.sh` (шинэ код, `postgresql-client-17` суулгана)
+2. Локал дээр: `cd infra && terraform plan -out tfplan && terraform apply tfplan` (backups bucket, `ecs:RunTask`, шинэ buildspec)
+3. Gateway дээр: `AIDOLAB_BACKUP_BUCKET=aidolab-backups-<account>`-ийг `/etc/aidolab/env`-д нэмээд `sudo systemctl restart aidolab-worker`
+
+`AIDOLAB_BACKUP_BUCKET` байхгүй бол өгөгдлийн сантай апп-ын migration-тэй deploy нөөцгүйгээр явахгүй, зогсоно.

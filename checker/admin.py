@@ -6,7 +6,8 @@ from .models import AuditEvent, ContactRequest, CustomDomain, Invoice, MentorReq
 
 @admin.register(Service)
 class ServiceAdmin(admin.ModelAdmin):
-    list_display = ("name", "slug", "owner", "score", "updated_at")
+    list_display = ("name", "slug", "owner", "score", "build_mode", "updated_at")
+    list_filter = ("build_mode",)
     search_fields = ("name", "slug", "owner__email")
     # Findings/advice are large JSON; keep them read-only.
     readonly_fields = ("findings", "advice", "created_at", "updated_at")

@@ -11,6 +11,17 @@ APP=/srv/aidolab/app
 grep -q '^HOSTING_BACKEND=aws' /etc/aidolab/env || { echo "HOSTING_BACKEND=aws /etc/aidolab/env-д алга (terraform output gateway_env)."; exit 1; }
 
 apt-get install -y python3-certbot-dns-route53
+# pg_dump/pg_restore for the pre-migration database backups (checker/aws.py). Must match the RDS
+# major version (infra/data.tf), so they come from the PostgreSQL project's apt repo, not Ubuntu's.
+if [ ! -x /usr/lib/postgresql/17/bin/pg_dump ]; then
+  install -d /usr/share/postgresql-common/pgdg
+  curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+  echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main" \
+    > /etc/apt/sources.list.d/pgdg.list
+  apt-get update
+  apt-get install -y postgresql-client-17
+fi
+grep -q '^AIDOLAB_BACKUP_BUCKET=' /etc/aidolab/env || echo "!! AIDOLAB_BACKUP_BUCKET /etc/aidolab/env-д алга (terraform output gateway_env). Migration-тэй deploy зогсоно."
 if [ ! -d /etc/letsencrypt/live/aidolab.mn-wildcard ]; then
   certbot certonly --dns-route53 --cert-name aidolab.mn-wildcard -d '*.aidolab.mn' \
     --non-interactive --agree-tos --register-unsafely-without-email \

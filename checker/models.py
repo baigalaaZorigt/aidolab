@@ -31,7 +31,12 @@ class Service(models.Model):
     # Auto-deploy: the worker redeploys when the repo's default branch gets a new commit.
     auto_deploy = models.BooleanField(default=True)
     last_commit = models.CharField(max_length=40, blank=True)  # default-branch HEAD at the last scan
-    runtime = models.CharField(max_length=10, choices=[("python", "Python"), ("node", "Node.js")], default="python")
+    runtime = models.CharField(max_length=10, choices=[("python", "Python"), ("node", "Node.js"), ("static", "Статик")],
+                               default="python")
+    # How deploys build the app (checker/buildplan.py). "legacy": apps already live before buildplan keep the
+    # old buildspec behaviour and run no migrations; a mentor switches them to "auto" in /admin/ when ready.
+    build_mode = models.CharField(max_length=10, choices=[("auto", "Шинэ (migration + нөөц)"), ("legacy", "Хуучин дүрэм")],
+                                  default="auto")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -190,6 +195,14 @@ class Deploy(models.Model):
     build_id = models.CharField(max_length=200, blank=True)
     image = models.CharField(max_length=300, blank=True)
     error = models.CharField(max_length=500, blank=True)
+    # buildplan.plan() of the deployed commit: kind, label, start, release (migration command), dockerfile.
+    plan = models.JSONField(default=dict, blank=True)
+    task_definition = models.CharField(max_length=300, blank=True)
+    # S3 key (BACKUP_BUCKET) of the database dump taken right before this deploy's migration.
+    backup_key = models.CharField(max_length=300, blank=True)
+    # Rollback: the deploy whose image goes live again, and whether the database goes back too.
+    rollback_of = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    restore_db = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["-started_at", "-pk"]
@@ -212,6 +225,13 @@ class Deploy(models.Model):
     def log(self, line: str) -> None:
         self.logs.append([self.elapsed, line])
         self.save(update_fields=["logs"])
+
+    @property
+    def restore_point(self):
+        """The backup that puts the database back to how it was while this deploy was live:
+        the one taken before the first later deploy that ran a migration."""
+        return (Deploy.objects.filter(service_id=self.service_id, number__gt=self.number)
+                .exclude(backup_key="").order_by("number").first())
 
     @property
     def elapsed(self) -> int:

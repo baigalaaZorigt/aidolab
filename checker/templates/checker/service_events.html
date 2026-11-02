@@ -11,6 +11,13 @@
   .event .right { display:flex; align-items:center; gap:12px; }
   .delta { font-family:"JetBrains Mono", ui-monospace, monospace; font-size:13px; }
   .delta.up { color:var(--ok); } .delta.down { color:var(--high); }
+  .rollback { position:relative; }
+  .rollback summary { list-style:none; cursor:pointer; }
+  .rollback summary::-webkit-details-marker { display:none; }
+  .rollback-box { position:absolute; right:0; top:calc(100% + 6px); z-index:5; width:300px; max-width:80vw; padding:14px;
+    background:var(--panel); color:var(--text); border:1px solid var(--line-2); border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.08); font-size:13px; }
+  .rollback-box p { margin:0 0 10px; }
+  .rollback-box label { display:flex; gap:8px; align-items:flex-start; margin-bottom:4px; }
 {% endblock %}
 {% block tab %}
 <section>
@@ -24,12 +31,25 @@
       <div>
         <b>Deploy #{{ e.number }} {% if e.status == "building" %}явагдаж байна{% elif e.status == "failed" %}амжилтгүй{% else %}амжилттай{% endif %}</b>
         {% if e.pk == current_deploy %}<span class="tag" style="margin-left:6px">Одоогийн</span>{% endif %}
-        <div class="sub2">{% if e.trigger == "rollback" %}Өмнөх хувилбар руу буцаасан{% elif e.trigger == "auto" %}Шинэ commit-оор автоматаар{% else %}Гараар эхлүүлсэн{% endif %}{% if e.commit %} · <span class="mono">{{ e.commit|slice:":7" }}</span>{% endif %} · оноо {{ e.score }}/100 · <a class="link" href="/services/{{ service.pk }}/logs/">Log</a></div>
+        <div class="sub2">{% if e.trigger == "rollback" %}{% if e.rollback_of %}Deploy #{{ e.rollback_of.number }}-ийн хувилбар руу буцаасан{% else %}Өмнөх хувилбар руу буцаасан{% endif %}{% if e.restore_db %} · өгөгдлийн сантай нь{% endif %}{% elif e.trigger == "auto" %}Шинэ commit-оор автоматаар{% else %}Гараар эхлүүлсэн{% endif %}{% if e.commit %} · <span class="mono">{{ e.commit|slice:":7" }}</span>{% endif %} · оноо {{ e.score }}/100 · <a class="link" href="/services/{{ service.pk }}/logs/">Log</a></div>
       </div>
       <div class="right">
-        {% if e.pk != current_deploy %}
-        <form method="post" action="/services/{{ service.pk }}/deploy/">{% csrf_token %}<input type="hidden" name="trigger" value="rollback">
-          <button class="btn" style="padding:5px 10px" {% if service.score < 80 %}disabled{% endif %}>Буцаах</button></form>
+        {% if e.can_rollback %}
+        <details class="rollback">
+          <summary class="btn" style="padding:5px 10px">Буцаах</summary>
+          <form method="post" action="/services/{{ service.pk }}/deploy/" class="rollback-box">{% csrf_token %}
+            <input type="hidden" name="trigger" value="rollback"><input type="hidden" name="target" value="{{ e.pk }}">
+            <p>Апп Deploy #{{ e.number }}-ийн кодоор дахин ажиллана. Дахин build хийхгүй.</p>
+            {% if e.db_point %}
+            <label><input type="checkbox" name="restore_db" value="1">
+              Өгөгдлийн санг мөн {{ e.db_point.started_at|date:"m/d H:i" }}-ийн байдалд буцаах</label>
+            <p class="muted">Тэр цагаас хойш нэмэгдсэн, өөрчлөгдсөн өгөгдөл устна.</p>
+            {% elif service.database %}
+            <p class="muted">Өгөгдлийн сан одоогийн байдлаараа үлдэнэ.</p>
+            {% endif %}
+            <button class="btn" {% if service.score < 80 %}disabled title="Оноо 80-аас доош байна"{% endif %}>Буцаах</button>
+          </form>
+        </details>
         {% endif %}
         <span class="muted" title="{{ e.started_at|date:'Y-m-d H:i' }}">{{ e.ago }}</span>
       </div>

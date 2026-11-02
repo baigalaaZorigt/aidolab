@@ -19,6 +19,7 @@ output "gateway_env" {
     AIDOLAB_APP_ROLE_PATH=${local.role_path}
     AIDOLAB_APP_BOUNDARY_ARN=${aws_iam_policy.app_boundary.arn}
     AIDOLAB_FILES_BUCKET=${aws_s3_bucket.files.bucket}
+    AIDOLAB_BACKUP_BUCKET=${aws_s3_bucket.backups.bucket}
     AIDOLAB_NAMESPACE_ID=${aws_service_discovery_private_dns_namespace.apps.id}
     AIDOLAB_APP_DOMAIN=${local.app_domain}
     AIDOLAB_SSM_PREFIX=${local.ssm_prefix}
